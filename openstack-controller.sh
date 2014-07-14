@@ -1,5 +1,8 @@
 #!/bin/bash
 
+openstack_txt_pwd=openstack_pwd.txt
+keystone_conf="/etc/keystone/keystone.conf"
+
 #apt update
 
 echo "Controller node script"
@@ -26,11 +29,11 @@ if [ -e db_installed ]; then
 	
 	echo "Creating DB passwords"
 	
-	echo "Nova DB Password: $password_db_nova " >> openstack_pwd.txt
-	echo "Cinder DB Password: $password_db_cinder " >> openstack_pwd.txt
-	echo "Glance DB Password: $password_db_glance " >> openstack_pwd.txt
-	echo "Neutron DB Password: $password_db_neutron " >> openstack_pwd.txt 
-	echo "Keystone DB Password: $password_db_keystone " >> openstack_pwd.txt
+	echo "Nova DB Password: $password_db_nova " >> $openstack_txt_pwd
+	echo "Cinder DB Password: $password_db_cinder " >> $openstack_txt_pwd
+	echo "Glance DB Password: $password_db_glance " >> $openstack_txt_pwd
+	echo "Neutron DB Password: $password_db_neutron " >> $openstack_txt_pwd 
+	echo "Keystone DB Password: $password_db_keystone " >> $openstack_txt_pwd
 	
 	echo "Creating Databases for Openstack services"
 
@@ -62,16 +65,15 @@ apt install -y keystone python-keystone python-keystoneclient
 
 echo "Configuring Keystone config file"
 admin_token_var=$(openssl rand -base64 32)
-echo "Admin token password: $admin_token_var" >> openstack_db_pwd.txt
+echo "Admin token password: $admin_token_var" >> $openstack_txt_pwd
 if [ -e /etc/keystone/keystone.conf.bak ]; then
 	echo "backup file already exists, probably Keystone is already configured"
 	else
 	echo "Creating backup config file (Keystone) "
-	cp /etc/keystone/keystone.conf /etc/keystone/keystone.conf.bak
-	keystone_conf="/etc/keystone/keystone.conf"
-	sed -i "s/#admin_token=ADMIN/admin_token=$admin_token_var/g" $keystone_conf
+	cp $keystone_conf /etc/keystone/keystone.conf.bak
+	sed -i "s/\#admin_token=ADMIN/admin_token=$admin_token_var/g" $keystone_conf
 	sed -i "s/connection = sqlite:\/\/\/\/var\/lib\/keystone\/keystone.db/connection = mysql:\/\/keystone:$password_db_keystone@localhost\/keystone/g" $keystone_conf
-	sed -i "s/#rabbit_password=guest/rabbit_password=$rabbit_pass/g" $keystone_conf
+	sed -i "s/\#rabbit_password=guest/rabbit_password=$rabbit_pass/g" $keystone_conf
 	keystone-manage db_sync
 	service keystone restart
 fi
@@ -85,10 +87,11 @@ source openrc
 echo "source openrc" >> .bashrc
 
 echo "Insert the admin user password " 
-read $admin_pass
-echo "Admin password: $admin_pass" >> openstack_pwd.txt
+read -s $admin_pass
+echo "Admin password: $admin_pass" >> $openstack_txt_pwd
 echo "Insert the admin email address "
-echo "Admin email: $admin_email" >> openstack_pwd.txt
+read -s $admin_email
+echo "Admin email: $admin_email" >> $openstack_txt_pwd
 
 keystone user-create --name=admin --pass=$admin_pass --email=$admin_email
 keystone role-create --name=admin
@@ -96,6 +99,6 @@ keystone tenant-create --name=admin --description="Admin Tenant"
 keystone user-role-add --user=admin --tenant=admin --role=admin
 keystone user-role-add --user=admin --role=_member_ --tenant=admin
 keystone tenant-create --name=service --description="Service Tenant"
-eystone service-create --name=keystone --type=identity --description="OpenStack Identity"
+keystone service-create --name=keystone --type=identity --description="OpenStack Identity"
 
 
