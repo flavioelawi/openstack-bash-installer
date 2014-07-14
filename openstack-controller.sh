@@ -10,6 +10,9 @@ if [ -e db_installed ]; then
 	echo "DB Already configured"
 	else
 	apt install -y python-mysqldb mysql-server rabbitmq-server
+	rabbit_pass=$(openssl rand -base64 32)	
+	echo "RabbitMQ guest password: $rabbit_pass" > openstack_pwd.txt
+	rabbitmqctl change_password guest $rabbit_pass
 	mysql_secure_installation
 	sed -i "s/127.0.0.1/0.0.0.0/g" /etc/mysql/my.cnf
 	
@@ -23,11 +26,11 @@ if [ -e db_installed ]; then
 	
 	echo "Creating DB passwords"
 	
-	echo "Nova DB Password: $password_db_nova " > openstack_db_pwd.txt
-	echo "Cinder DB Password: $password_db_cinder " >> openstack_db_pwd.txt
-	echo "Glance DB Password: $password_db_glance " >> openstack_db_pwd.txt
-	echo "Neutron DB Password: $password_db_neutron " >> openstack_db_pwd.txt 
-	echo "Keystone DB Password: $password_db_keystone " >> openstack_db_pwd.txt
+	echo "Nova DB Password: $password_db_nova " >> openstack_pwd.txt
+	echo "Cinder DB Password: $password_db_cinder " >> openstack_pwd.txt
+	echo "Glance DB Password: $password_db_glance " >> openstack_pwd.txt
+	echo "Neutron DB Password: $password_db_neutron " >> openstack_pwd.txt 
+	echo "Keystone DB Password: $password_db_keystone " >> openstack_pwd.txt
 	
 	echo "Creating Databases for Openstack services"
 
@@ -68,7 +71,31 @@ if [ -e /etc/keystone/keystone.conf.bak ]; then
 	keystone_conf="/etc/keystone/keystone.conf"
 	sed -i "s/#admin_token=ADMIN/admin_token=$admin_token_var/g" $keystone_conf
 	sed -i "s/connection = sqlite:\/\/\/\/var\/lib\/keystone\/keystone.db/connection = mysql:\/\/keystone:$password_db_keystone@localhost\/keystone/g" $keystone_conf
+	sed -i "s/#rabbit_password=guest/rabbit_password=$rabbit_pass/g" $keystone_conf
 	keystone-manage db_sync
 	service keystone restart
 fi
+
+echo "export OS_USERNAME=admin" > openrc
+echo "export OS_PASSWORD=$admin_token_var" >> openrc
+echo "export OS_TENANT_NAME=admin" >> openrc
+echo "export OS_AUTH_URL=http://localhost:35357/v2.0" >> openrc
+
+source openrc
+echo "source openrc" >> .bashrc
+
+echo "Insert the admin user password " 
+read $admin_pass
+echo "Admin password: $admin_pass" >> openstack_pwd.txt
+echo "Insert the admin email address "
+echo "Admin email: $admin_email" >> openstack_pwd.txt
+
+keystone user-create --name=admin --pass=$admin_pass --email=$admin_email
+keystone role-create --name=admin
+keystone tenant-create --name=admin --description="Admin Tenant"
+keystone user-role-add --user=admin --tenant=admin --role=admin
+keystone user-role-add --user=admin --role=_member_ --tenant=admin
+keystone tenant-create --name=service --description="Service Tenant"
+eystone service-create --name=keystone --type=identity --description="OpenStack Identity"
+
 
