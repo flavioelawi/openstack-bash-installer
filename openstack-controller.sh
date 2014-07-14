@@ -114,7 +114,7 @@ if [ -e /etc/keystone/keystone.conf.bak ]; then
 		read -s admin_pass
 		echo "Admin password: $admin_pass" >> $openstack_txt_pwd
 		echo "Insert the admin email address "
-		read -s admin_email
+		read admin_email
 		echo "Admin email: $admin_email" >> $openstack_txt_pwd
 
 		keystone user-create --name=admin --pass=$admin_pass --email=$admin_email
