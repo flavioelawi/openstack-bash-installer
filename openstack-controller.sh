@@ -1,19 +1,23 @@
 #!/bin/bash
 
 openstack_txt_pwd=openstack_pwd.txt
+openrc=openrc
+adminopenrc=admin-openrc.sh
 keystone_conf="/etc/keystone/keystone.conf"
+glance_api_conf="/etc/glance/glance-api.conf"
+glance_registry_conf="/etc/glance/glance-registry.conf"
 
 
 # FUNCTIONS
 
 function configure_passwords(){
-password_db_nova=$(openssl rand -base64 32)
-password_db_cinder=$(openssl rand -base64 32)
-password_db_glance=$(openssl rand -base64 32)
-password_db_neutron=$(openssl rand -base64 32)
-password_db_keystone=$(openssl rand -base64 32)
-rabbit_pass=$(openssl rand -base64 32)
-admin_token_var=$(openssl rand -base64 32)
+password_db_nova=$(openssl rand -hex 16)
+password_db_cinder=$(openssl rand -hex 16)
+password_db_glance=$(openssl rand -hex 16)
+password_db_neutron=$(openssl rand -hex 16)
+password_db_keystone=$(openssl rand -hex 16)
+rabbit_pass=$(openssl rand -hex 16)
+admin_token=$(openssl rand -hex 16)
 echo "Creating Databases user passwords"
 echo "rabbit_pass=$rabbit_pass" >> $openstack_txt_pwd
 echo "password_db_nova=$password_db_nova" >> $openstack_txt_pwd
@@ -21,7 +25,7 @@ echo "password_db_cinder=$password_db_cinder" >> $openstack_txt_pwd
 echo "password_db_glance=$password_db_glance" >> $openstack_txt_pwd
 echo "password_db_neutron=$password_db_neutron" >> $openstack_txt_pwd 
 echo "password_db_keystone=$password_db_keystone" >> $openstack_txt_pwd
-echo "admin_token_var=$admin_token_var" >> $openstack_txt_pwd
+echo "admin_token=$admin_token" >> $openstack_txt_pwd
 echo "Insert the admin user password " 
 read -s admin_pass
 echo "admin_pass=$admin_pass" >> $openstack_txt_pwd
@@ -29,15 +33,21 @@ echo "Insert the admin email address "
 read admin_email
 echo "admin_email=$admin_email" >> $openstack_txt_pwd
 #echo "export OS_USERNAME=admin" > openrc
-echo "export OS_SERVICE_TOKEN=$admin_token_var" >> openrc
+echo "export OS_SERVICE_TOKEN=$admin_token" >> $openrc
 #echo "export OS_TENANT_NAME=admin" >> openrc
-echo "export OS_SERVICE_ENDPOINT=http://localhost:35357/v2.0" >> openrc
+echo "export OS_SERVICE_ENDPOINT=http://$controller_node:35357/v2.0" >> $openrc
+echo "export OS_USERNAME=admin" >> $adminopenrc
+echo "export OS_PASSWORD=$admin_pass" >> $adminopenrc
+echo "export OS_TENANT_NAME=admin" >> $adminopenrc
+echo "export OS_AUTH_URL=http://$controller_node:35357/v2.0" >> $adminopenrc
 chmod 700 $openstack_txt_pwd
+chmod 700 $adminopenrc
 }
 
 function set_passwords(){
 source $openstack_txt_pwd
-source openrc
+source $openrc
+source $adminopenrc
 }
 
 function create_db(){
@@ -83,15 +93,14 @@ function configure_keystone() {
 	echo "Creating backup config file (Keystone) "
 	cp $keystone_conf /etc/keystone/keystone.conf.bak	
 	echo "Configuring Keystone config file"
-	sed -i "s/\#admin_token\=ADMIN/admin_token\=$admin_token_var/g" $keystone_conf
+	sed -i "s/\#admin_token\=ADMIN/admin_token\=$admin_token/g" $keystone_conf
 	sed -i "s/connection\ \=\ sqlite\:\/\/\/\/var\/lib\/keystone\/keystone.db/connection\ \=\ mysql\:\/\/keystone\:$password_db_keystone\@localhost\/keystone/g" $keystone_conf
 	sed -i "s/\#rabbit_password\=guest/rabbit_password\=$rabbit_pass/g" $keystone_conf
 	rm /var/lib/keystone/keystone.db
 	keystone-manage db_sync
 	service keystone restart
 	# BEGIN KEYSTONE CONFIGURATION
-	
-	echo "source openrc" >> .bashrc
+	sleep 5
 	keystone user-create --name=admin --pass=$admin_pass --email=$admin_email
 	keystone role-create --name=admin
 	keystone tenant-create --name=admin --description="Admin Tenant"
@@ -99,6 +108,8 @@ function configure_keystone() {
 	keystone user-role-add --user=admin --role=_member_ --tenant=admin
 	keystone tenant-create --name=service --description="Service Tenant"
 	keystone service-create --name=keystone --type=identity --description="OpenStack Identity"
+	#ENDPOINT CONFIGURATION
+	keystone endpoint-create --service-id=$(keystone service-list | awk '/ identity / {print $2}') --publicurl=http://$controller_node:5000/v2.0 --internalurl=http://$controller_node:5000/v2.0 --adminurl=http://$controller_node:35357/v2.0
 # END KEYSTONE INSTALLATION
 return
 }
@@ -108,6 +119,19 @@ function  configure_rabbitmq(){
 	apt install -y rabbitmq-server
 rabbitmqctl change_password guest $rabbit_pass
 return
+}
+
+function set_controller(){
+echo "Insert the FQDN or IP of the controller node"
+read controller_node
+}
+
+function configure_glance(){
+apt install -y glance python-glanceclient
+sed -i "s/connection\ \=\ sqlite\:\/\/\/\/var\/lib\/keystone\/keystone.db/connection\ \=\ mysql\:\/\/keystone\:$password_db_glance\@localhost\/keystone/g" $glance_api_conf
+
+glance-manage db_sync
+
 }
 
 # OPERATIONS MENU
@@ -123,6 +147,8 @@ echo "[7] Configure the Networking (Neutron)"
 echo "[8] Configure the Object Storage (Swift)"
 echo "[9] Configure the Orchestration (Heat)"
 echo "[10] Configure the Telemetry (Ceilometer)"
+echo "[11] Configure the Web Portal (Horizon)"
+echo "[12] Set the controller hostname or IP"
 echo "[q] Exit"
 }
 read_options(){
@@ -140,6 +166,8 @@ read_options(){
 	8) configure_swift ;;
 	9) configure_heat ;;
 	10) configure_ceilometer ;;
+	11) configure_horizon ;;
+	12) set_controller ;;
 	q) exit 0 ;;
 	*) echo "Error: Select a number from the list" ;;
 	esac
