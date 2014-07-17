@@ -318,7 +318,7 @@ function configure_nova_generic(){
 		configure_novarc
 		configure_rabbitmq
 		configure_admin_openrc
-		
+		set_controller
 		echo "rpc_backend = rabbit" >> $nova_conf
 		echo "rabbit_host = $controller_node" >> $nova_conf
 		echo "rabbit_port = 5672" >> $nova_conf
