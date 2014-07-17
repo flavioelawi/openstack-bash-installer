@@ -418,13 +418,12 @@ show_menus(){
 	echo "[4] Configure the Image Service (Glance)"
 	echo "[5] Configure the Block Storage (Cinder-controller)"
 	echo "[6] Configure the Block Storage (Cinder-service)"
-	echo "[7] Configure the Compute Controller node (Nova Controller)"
-	echo "[8] Configure the Compute node (Nova)"
-	echo "[9] Configure the Networking (Neutron)"
-	echo "[10] Configure the Object Storage (Swift)"
-	echo "[11] Configure the Orchestration (Heat)"
-	echo "[12] Configure the Telemetry (Ceilometer)"
-	echo "[13] Configure the Dashboard (Horizon)"
+	echo "[7] Configure the Compute node (Nova)"
+	echo "[8] Configure the Networking (Neutron)"
+	echo "[9] Configure the Object Storage (Swift)"
+	echo "[10] Configure the Orchestration (Heat)"
+	echo "[11] Configure the Telemetry (Ceilometer)"
+	echo "[12] Configure the Dashboard (Horizon)"
 	echo "[q] Exit"
 }
 
@@ -438,13 +437,12 @@ read_options(){
 	4) install_glance ;;
 	5) configure_cinder_controller ;;
 	6) configure_cinder_service ;;	
-	7) configure_nova_controller ;;
-	8) configure_nova_compute ;;
-	9) configure_neutron ;;
-	10) configure_swift ;;
-	11) configure_heat ;;
-	12) configure_ceilometer ;;
-	13) configure_horizon ;;
+	7) show_menus_nova ;;
+	8) configure_neutron ;;
+	9) configure_swift ;;
+	10) configure_heat ;;
+	11) configure_ceilometer ;;
+	12) configure_horizon ;;
 	q) exit 0 ;;
 	*) echo "Error: Select a number from the list" ;;
 	esac
