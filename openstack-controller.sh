@@ -1,15 +1,23 @@
 #!/bin/bash
 
-openstack_db_pass=openstack_db_pass
-openrc=openrc
-admin_openrc=admin_openrc
-admin_user_creds=admin_user_creds
-rabbitrc=rabbitrc
-glancerc=glancerc
-controller_node_file=controller_node_file
+mkdir rcfiles
+mkdir confbak
+openstack_db_pass=rcfiles/openstack_db_pass
+openrc=rcfiles/openrc
+admin_openrc=rcfiles/admin_openrc
+admin_user_creds=rcfiles/admin_user_creds
+rabbitrc=rcfiles/rabbitrc
+glancerc=rcfiles/glancerc
+cinderrc=rcfiles/cinderrc
+novarc=rcfiles/novarc
+controller_node_file=rcfiles/controller_node_file
 keystone_conf="/etc/keystone/keystone.conf"
 glance_api_conf="/etc/glance/glance-api.conf"
 glance_registry_conf="/etc/glance/glance-registry.conf"
+cinder_conf="/etc/cinder/cinder.conf"
+nova_conf="/etc/nova/nova.conf"
+nova_compute_conf="/etc/nova/nova-compute.conf"
+statoverride="/etc/kernel/postinst.d/statoverride"
 
 # FUNCTIONS
 function generate_first_admin(){
@@ -133,6 +141,9 @@ function create_db(){
 		CREATE DATABASE keystone;
 		GRANT ALL PRIVILEGES ON keystone.* TO "keystone"@"localhost" IDENTIFIED BY "$password_db_keystone";
 		GRANT ALL PRIVILEGES ON keystone.* TO "keystone"@"%" IDENTIFIED BY "$password_db_keystone";
+		CREATE DATABASE heat;
+		GRANT ALL PRIVILEGES ON heat.* TO "heat"@"localhost" IDENTIFIED BY "password_db_heat";
+		GRANT ALL PRIVILEGES ON heat.* TO "heat"@"%" IDENTIFIED BY "password_db_heat";
 		FLUSH PRIVILEGES;
 EOF
 		touch db_installed
@@ -151,7 +162,7 @@ function configure_keystone() {
 		echo "Installing Openstack keystone server"
 		apt install -y keystone python-keystone python-keystoneclient
 		echo "Creating backup config file (Keystone) "
-		cp $keystone_conf /etc/keystone/keystone.conf.bak	
+		cp $keystone_conf "confbak/keystone.conf.$(date +%F_%R)"	
 		echo "Configuring Keystone config file"
 		sed -i "s/\#admin_token\=ADMIN/admin_token\=$admin_token/g" $keystone_conf
 		sed -i "s/connection\ \=\ sqlite\:\/\/\/\/var\/lib\/keystone\/keystone.db/connection\ \=\ mysql\:\/\/keystone\:$password_db_keystone\@$controller_node\/keystone/g" $keystone_conf
@@ -177,7 +188,7 @@ function configure_keystone() {
 return
 }
 
-function configure_glance(){
+function configure_glancerc(){
 	if [ -e "$glancerc" ]; then
 		echo "The $glancerc file already exists, sourcing it. "
 		source $glancerc
@@ -189,17 +200,31 @@ function configure_glance(){
 	fi
 }
 
+function configure_cinderrc(){
+	if [ -e "$cinderrc" ]; then
+		echo "The $cinderrc file already exists, sourcing it. "
+		source $cinderrc
+	else
+		cinder_pass=$(openssl rand -hex 16)
+		echo "cinder_pass=$cinder_pass" >> $cinderrc
+		chmod 700 $cinderrc
+		source $cinderrc
+	fi
+}
+
 function install_glance(){
 	if [ -e glance_installed ]; then
 		echo "Glance already installed"
 	else
 		set_controller
 		configure_admin_openrc
-		configure_glance
+		configure_glancerc
 		create_db
 		configure_rabbitmq
 		apt install -y glance python-glanceclient
 		keystone user-create --name=glance --pass=$glance_pass --email=glance@example.com
+		cp $glance_api_conf "confbak/glance-api.conf.$(date +%F_%R)"
+		cp $glance_registry_conf "confbak/glance-registry.conf.$(date +%F_%R)"
 		# PARSE AND CHANGE API FILE
 		sed -i "s/sqlite_db\ \=\ \/var\/lib\/glance\/glance.sqlite/connection\ \=\ mysql\:\/\/glance\:$password_db_glance\@$controller_node\/glance/g" $glance_api_conf
 		sed -i "s/\#rabbit_password\=guest/rabbit_password\=$rabbit_pass/g" $glance_api_conf
@@ -233,47 +258,205 @@ function configure_horizon(){
 	apt-get remove --purge openstack-dashboard-ubuntu-theme
 }
 
+function configure_cinder_controller(){
+	if [ -e cinder_controller_installed ]; then
+		echo "Cinder already installed"
+	else
+		apt install -y cinder-api cinder-scheduler
+		set_controller
+		cp $cinder_conf "confbak/cinder.conf.$(date +%F_%R)"
+		configure_rabbitmq
+		echo "rpc_backend = cinder.openstack.common.rpc.impl_kombu" >> $cinder_conf
+		echo "rabbit_host = $controller_node" >> $cinder_conf
+		echo "rabbit_port = 5672" >> $cinder_conf
+		echo "rabbit_userid = guest" >> $cinder_conf
+		echo "rabbit_password = $rabbit_pass" >> $cinder_conf
+		echo "[database]" >> $cinder_conf
+		configure_db_passwords
+		echo "connection = mysql://cinder:$password_db_cinder@$controller_node/cinder" >> $cinder_conf
+		cinder-manage db sync
+		configure_cinderrc
+		keystone user-create --name=cinder --pass=$cinder_pass --email=cinder@example.com
+		keystone user-role-add --user=cinder --tenant=service --role=admin
+		echo "[keystone_authtoken]" >> $cinder_conf
+		echo "auth_uri = http://$controller_node:5000" >> $cinder_conf
+		echo "auth_host = $controller_node" >> $cinder_conf
+		echo "auth_port = 35357" >> $cinder_conf
+		echo "auth_protocol = http" >> $cinder_conf
+		echo "admin_tenant_name = service" >> $cinder_conf
+		echo "admin_user = cinder" >> $cinder_conf
+		echo "admin_password = $cinder_pass" >> $cinder_conf
+		configure_admin_openrc
+		keystone service-create --name=cinder --type=volume --description="OpenStack Block Storage"
+		keystone endpoint-create --service-id=$(keystone service-list | awk '/ volume / {print $2}') --publicurl=http://$controller_node:8776/v1/%\(tenant_id\)s --internalurl=http://$controller_node:8776/v1/%\(tenant_id\)s --adminurl=http://$controller_node:8776/v1/%\(tenant_id\)s
+		keystone service-create --name=cinderv2 --type=volumev2 --description="OpenStack Block Storage v2"
+		keystone endpoint-create --service-id=$(keystone service-list | awk '/ volumev2 / {print $2}') --publicurl=http://$controller_node:8776/v2/%\(tenant_id\)s --internalurl=http://$controller_node:8776/v2/%\(tenant_id\)s --adminurl=http://$controller_node:8776/v2/%\(tenant_id\)s
+		service cinder-scheduler restart
+		service cinder-api restart
+	fi
+}
+function configure_cinder_service(){
+	apt install -y cinder-volume
+}
+
+function configure_novarc(){
+	if [ -e "$novarc" ]; then
+		echo "The $novarc file already exists, sourcing it. "
+		source $novarc
+	else
+		nova_pass=$(openssl rand -hex 16)
+		echo "nova_pass=$nova_pass" >> $novarc
+		chmod 700 $novarc
+		source $novarc
+	fi
+}
+
+function configure_nova_generic(){
+	if [ -e nova_generic_installed ]; then
+		echo "Nova Controller already installed"
+	else
+		configure_novarc
+		configure_rabbitmq
+		configure_admin_openrc
+		
+		echo "rpc_backend = rabbit" >> $nova_conf
+		echo "rabbit_host = $controller_node" >> $nova_conf
+		echo "rabbit_port = 5672" >> $nova_conf
+		echo "rabbit_userid = guest" >> $nova_conf
+		echo "rabbit_password = $rabbit_pass" >> $nova_conf
+		echo "my_ip = 0.0.0.0" >> $nova_conf
+		echo "vncserver_listen = 0.0.0.0" >> $nova_conf
+		echo "vncserver_proxyclient_address = 0.0.0.0" >> $nova_conf
+		echo "novncproxy_base_url = http://controller:6080/vnc_auto.html" >> $nova_conf
+		echo "glance_host = $controller_node" >> $nova_conf
+		echo "auth_strategy = keystone" >> $nova_conf
+		rm /var/lib/nova/nova.sqlite
+		create_db
+		echo "[database]" >> $nova_conf
+		echo "connection = mysql://nova:$password_db_nova@$controller_node/nova" >> $nova_conf
+		echo "[keystone_authtoken]" >> $nova_conf
+		echo "auth_uri = http://$controller_node:5000" >> $nova_conf
+		echo "auth_host = $controller_node" >> $nova_conf
+		echo "auth_port = 35357" >> $nova_conf
+		echo "auth_protocol = http" >> $nova_conf
+		echo "admin_tenant_name = service" >> $nova_conf
+		echo "admin_user = nova" >> $nova_conf
+		echo "admin_password = $nova_pass" >> $nova_conf
+		touch nova_generic_installed
+	fi
+}
+
+function configure_nova_controller(){
+	if [ -e nova_controller_installed ]; then
+		echo "Nova Controller already installed"
+	else	
+		apt install -y nova-api nova-cert nova-conductor nova-consoleauth nova-novncproxy nova-scheduler python-novaclient
+		cp $nova_conf "confbak/nova.conf.$(date +%F_%R)"
+		configure_nova_generic
+		keystone user-create --name=nova --pass=$nova_pass --email=nova@example.com
+		keystone user-role-add --user=nova --tenant=service --role=admin
+		keystone service-create --name=nova --type=compute --description="OpenStack Compute"
+		keystone endpoint-create --service-id=$(keystone service-list | awk '/ compute / {print $2}') --publicurl=http://$controller_node:8774/v2/%\(tenant_id\)s --internalurl=http://$controller_node:8774/v2/%\(tenant_id\)s --adminurl=http://$controller_node:8774/v2/%\(tenant_id\)s
+		nova-manage db sync
+		service nova-api restart
+		service nova-cert restart
+		service nova-consoleauth restart
+		service nova-scheduler restart
+		service nova-conductor restart
+		service nova-novncproxy restart
+		touch nova_controller_installed	
+	fi
+}
+
+function configure_nova_compute(){
+	if [ -e nova_compute_installed ]; then
+		echo "Nova Compute already installed"
+	else	
+		apt install -y nova-compute-kvm python-guestfs
+		cp $nova_compute_conf "confbak/nova-compute.conf.$(date +%F_%R)"
+		cp $nova_conf "confbak/nova.conf.$(date +%F_%R)"
+		configure_nova_generic
+		dpkg-statoverride  --update --add root root 0644 /boot/vmlinuz-$(uname -r)
+		echo "#!/bin/sh" >> $statoverride
+		echo "version="$1"" >> $statoverride
+		echo "# passing the kernel version is required" >> $statoverride
+		echo "[ -z "${version}" ] && exit 0" >> $statoverride
+		echo "dpkg-statoverride --update --add root root 0644 /boot/vmlinuz-${version}" >> $statoverride
+		chmod +x $statoverride
+		touch nova_compute_installed
+		if [ $(egrep -c '(vmx|svm)' /proc/cpuinfo) -eq 0 ]; then
+			echo "WARNING KVM ACCELERATION NOT ENABLED ON THIS HOST"
+			sed -i "s/virt_type\=kvm/virt_type\=qemu/g" $nova_compute_conf
+		else
+			echo "KVM ACCELERATION ENABLED"
+		fi		
+		service nova-compute restart
+	fi
+}
+
+show_menus_nova(){
+	echo "[1] Install the nova Controller API Service"
+	echo "[2] Install the nova Compute Service"
+	echo "[3] Go back to the previous menu"
+	local choice
+	read -p "Enter choice [1 - 3]" choice
+	case $choice in
+	1) configure_nova_controller ;;
+	2) configure_nova_compute ;;
+	b) init_menu ;;
+	*) echo "Error: Select a number from the list" ;;
+	esac
+}
+
 # OPERATIONS MENU
-show_menus() {
+show_menus(){
 	echo "[1] Configure RabbitMQ Server"
 	echo "[2] Configure the database for all services (MySQL)"
 	echo "[3] Configure the Identity Service (Keystone)"
 	echo "[4] Configure the Image Service (Glance)"
-	echo "[5] Configure the Block Storage (Cinder)"
-	echo "[6] Configure the Compute node (Nova)"
-	echo "[7] Configure the Networking (Neutron)"
-	echo "[8] Configure the Object Storage (Swift)"
-	echo "[9] Configure the Orchestration (Heat)"
-	echo "[10] Configure the Telemetry (Ceilometer)"
-	echo "[11] Configure the Dashboard (Horizon)"
+	echo "[5] Configure the Block Storage (Cinder-controller)"
+	echo "[6] Configure the Block Storage (Cinder-service)"
+	echo "[7] Configure the Compute node (Nova)"
+	echo "[8] Configure the Networking (Neutron)"
+	echo "[9] Configure the Object Storage (Swift)"
+	echo "[10] Configure the Orchestration (Heat)"
+	echo "[11] Configure the Telemetry (Ceilometer)"
+	echo "[12] Configure the Dashboard (Horizon)"
 	echo "[q] Exit"
 }
 
 read_options(){
 	local choice
-	read -p "Enter choice [0 - 11] " choice
+	read -p "Enter choice [1 - 12] " choice
 	case $choice in
 	1) configure_rabbitmq ;;
 	2) create_db ;;
 	3) configure_keystone ;;
 	4) install_glance ;;
-	5) configure_cinder ;;
-	6) configure_nova ;;
-	7) configure_neutron ;;
-	8) configure_swift ;;
-	9) configure_heat ;;
-	10) configure_ceilometer ;;
-	11) configure_horizon ;;
+	5) configure_cinder_controller ;;
+	6) configure_cinder_service ;;	
+	7) configure_nova ;;
+	8) configure_neutron ;;
+	9) configure_swift ;;
+	10) configure_heat ;;
+	11) configure_ceilometer ;;
+	12) configure_horizon ;;
 	q) exit 0 ;;
 	*) echo "Error: Select a number from the list" ;;
 	esac
 }
 
+function init_menu(){
+	while true
+	do
+		show_menus
+		read_options
+	done
+}
+
 while true
 do
-	show_menus
-	read_options
+	init_menu
 done
-
 
 
