@@ -123,6 +123,7 @@ function create_db(){
 		apt install -y python-mysqldb mysql-server rabbitmq-server
 		mysql_secure_installation
 		sed -i "s/127.0.0.1/0.0.0.0/g" /etc/mysql/my.cnf
+		sed -i "/[mysqld]/r mysqld" /etc/mysql/my.cnf
 		service mysql restart
 		echo "Creating Databases for Openstack services"
 		mysql -u root -p << EOF
@@ -255,7 +256,7 @@ return
 
 function configure_horizon(){
 	apt install -y apache2 memcached libapache2-mod-wsgi openstack-dashboard
-	apt-get remove --purge openstack-dashboard-ubuntu-theme
+	apt-get remove --purge -y openstack-dashboard-ubuntu-theme
 }
 
 function configure_cinder_controller(){
@@ -293,6 +294,7 @@ function configure_cinder_controller(){
 		keystone endpoint-create --service-id=$(keystone service-list | awk '/ volumev2 / {print $2}') --publicurl=http://$controller_node:8776/v2/%\(tenant_id\)s --internalurl=http://$controller_node:8776/v2/%\(tenant_id\)s --adminurl=http://$controller_node:8776/v2/%\(tenant_id\)s
 		service cinder-scheduler restart
 		service cinder-api restart
+		touch cinder_controller_installed
 	fi
 }
 function configure_cinder_service(){
@@ -327,7 +329,7 @@ function configure_nova_generic(){
 		echo "my_ip = 0.0.0.0" >> $nova_conf
 		echo "vncserver_listen = 0.0.0.0" >> $nova_conf
 		echo "vncserver_proxyclient_address = 0.0.0.0" >> $nova_conf
-		echo "novncproxy_base_url = http://controller:6080/vnc_auto.html" >> $nova_conf
+		echo "novncproxy_base_url = http://$controller_node:6080/vnc_auto.html" >> $nova_conf
 		echo "glance_host = $controller_node" >> $nova_conf
 		echo "auth_strategy = keystone" >> $nova_conf
 		rm /var/lib/nova/nova.sqlite
@@ -372,7 +374,7 @@ function configure_nova_compute(){
 	if [ -e nova_compute_installed ]; then
 		echo "Nova Compute already installed"
 	else	
-		apt install -y nova-compute-kvm python-guestfs
+		apt install -y nova-compute-kvm python-guestfs python-mysqldb
 		cp $nova_compute_conf "confbak/nova-compute.conf.$(date +%F_%R)"
 		cp $nova_conf "confbak/nova.conf.$(date +%F_%R)"
 		configure_nova_generic
@@ -410,6 +412,7 @@ show_menus_nova(){
 
 # OPERATIONS MENU
 show_menus(){
+	echo "REMEMBER TO UPDATE THE REPOSITORIES!"
 	echo "[1] Configure RabbitMQ Server"
 	echo "[2] Configure the database for all services (MySQL)"
 	echo "[3] Configure the Identity Service (Keystone)"
@@ -428,7 +431,7 @@ show_menus(){
 
 read_options(){
 	local choice
-	read -p "Enter choice [1 - 12] " choice
+	read -p "Enter choice [1 - 13] " choice
 	case $choice in
 	1) configure_rabbitmq ;;
 	2) create_db ;;
