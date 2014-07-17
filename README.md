@@ -5,9 +5,8 @@ TODO
 SSH remote install
 
 TO LAUNCH:
-
+```bash
 git clone https://github.com/galiral/openstack-bash-installer.git
-
 chmod +x openstack-bash-installer.sh
-
 ./openstack-bash-installer.sh
+```
