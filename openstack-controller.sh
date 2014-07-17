@@ -123,7 +123,6 @@ function create_db(){
 		apt install -y python-mysqldb mysql-server rabbitmq-server
 		mysql_secure_installation
 		sed -i "s/127.0.0.1/0.0.0.0/g" /etc/mysql/my.cnf
-		sed -i "/[mysqld]/r mysqld" /etc/mysql/my.cnf
 		service mysql restart
 		echo "Creating Databases for Openstack services"
 		mysql -u root -p << EOF
