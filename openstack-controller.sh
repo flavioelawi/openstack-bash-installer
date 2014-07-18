@@ -440,7 +440,7 @@ function configure_neutron_ml2(){
 }
 
 function configure_neutron_conf(){
-		sed -i "s/connection\ \=\ \/\/\/\/var\/lib\/neutron\/neutron.sqlite/connection\ \=\ mysql\:\/\/neutron\:$neutron_db_glance\@$controller_node\/neutron/g" $neutron_conf
+		sed -i "s/connection\ \=\ sqlite\:\/\/\/\/var\/lib\/neutron\/neutron.sqlite/connection\ \=\ mysql\:\/\/neutron\:$neutron_db_glance\@$controller_node\/neutron/g" $neutron_conf
 		sed -i "s/\#\ auth_strategy\ \=\ keystone/auth_strategy\ \=\ keystone/g" $neutron_conf
 		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $controller_node/g" $neutron_conf
 		sed -i "s/\%SERVICE_TENANT_NAME\%/admin/g" $neutron_conf
