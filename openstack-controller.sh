@@ -508,34 +508,46 @@ show_menus(){
 	echo "[2] Configure the database for all services (MySQL)"
 	echo "[3] Configure the Identity Service (Keystone)"
 	echo "[4] Configure the Image Service (Glance)"
-	echo "[5] Configure the Block Storage (Cinder-controller)"
-	echo "[6] Configure the Block Storage (Cinder-service)"
-	echo "[7] Configure the Compute node (Nova)"
-	echo "[8] Configure the Networking (Neutron)"
-	echo "[9] Configure the Object Storage (Swift)"
-	echo "[10] Configure the Orchestration (Heat)"
-	echo "[11] Configure the Telemetry (Ceilometer)"
-	echo "[12] Configure the Dashboard (Horizon)"
+	echo "[5] Configure the Block Storage (Cinder)"
+	echo "[6] Configure the Compute node (Nova)"
+	echo "[7] Configure the Networking (Neutron)"
+	echo "[8] Configure the Object Storage (Swift)"
+	echo "[9] Configure the Orchestration (Heat)"
+	echo "[10] Configure the Telemetry (Ceilometer)"
+	echo "[11] Configure the Dashboard (Horizon)"
 	echo "[q] Exit"
 }
 
 read_options(){
 	local choice
-	read -p "Enter choice [1 - 12] " choice
+	read -p "Enter choice [1 - 11] " choice
 	case $choice in
 		1) configure_rabbitmq ;;
 		2) create_db ;;
 		3) configure_keystone ;;
 		4) install_glance ;;
-		5) configure_cinder_controller ;;
-		6) configure_cinder_service ;;	
-		7) show_menus_nova ;;
-		8) show_menus_neutron ;;
-		9) configure_swift ;;
-		10) configure_heat ;;
-		11) configure_ceilometer ;;
-		12) configure_horizon ;;
+		5) show_menus_cinder ;;
+		6) show_menus_nova ;;
+		7) show_menus_neutron ;;
+		8) configure_swift ;;
+		9) configure_heat ;;
+		10) configure_ceilometer ;;
+		11) configure_horizon ;;
 		q) exit 0 ;;
+		*) echo "Error: Select a number from the list" ;;
+	esac
+}
+
+function show_menus_cinder(){
+	echo "[1] Install the Cinder Controller API Service"
+	echo "[2] Install the Cinder Block Storage"
+	echo "[b] Go back to the previous menu"
+	local choice
+	read -p "Enter choice [1 - 2]" choice
+	case $choice in
+		1) configure_cinder_controller ;;
+		2) configure_cinder_service ;;
+		b) init_menu ;;
 		*) echo "Error: Select a number from the list" ;;
 	esac
 }
@@ -545,7 +557,7 @@ function show_menus_nova(){
 	echo "[2] Install the nova Compute Service"
 	echo "[b] Go back to the previous menu"
 	local choice
-	read -p "Enter choice [1 - 3]" choice
+	read -p "Enter choice [1 - 2]" choice
 	case $choice in
 		1) configure_nova_controller ;;
 		2) configure_nova_compute ;;
@@ -559,6 +571,8 @@ function show_menus_neutron(){
 	echo "[2] Install the Neutron Network Service"
 	echo "[3] Install the Neutron service on a Compute Node"
 	echo "[b] Go back to the previous menu"
+	local choice
+	read -p "Enter choice [1 - 2]" choice
 	case $choice in
 		1) configure_neutron_controller ;;
 		2) configure_neutron_compute ;;
