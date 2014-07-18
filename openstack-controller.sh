@@ -2,12 +2,14 @@
 
 mkdir rcfiles
 mkdir confbak
+mkdir lockfiles
 openstack_db_pass=rcfiles/openstack_db_pass
 openrc=rcfiles/openrc
 admin_openrc=rcfiles/admin_openrc
 admin_user_creds=rcfiles/admin_user_creds
 rabbitrc=rcfiles/rabbitrc
 glancerc=rcfiles/glancerc
+neutronrc=rcfiles/neutronrc
 cinderrc=rcfiles/cinderrc
 novarc=rcfiles/novarc
 controller_node_file=rcfiles/controller_node_file
@@ -16,8 +18,10 @@ glance_api_conf="/etc/glance/glance-api.conf"
 glance_registry_conf="/etc/glance/glance-registry.conf"
 cinder_conf="/etc/cinder/cinder.conf"
 nova_conf="/etc/nova/nova.conf"
+neutron_conf="/etc/neutron/neutron.conf"
 nova_compute_conf="/etc/nova/nova-compute.conf"
 statoverride="/etc/kernel/postinst.d/statoverride"
+ml2_conf_ini="/etc/neutron/plugins/ml2/ml2_conf.ini"
 
 # FUNCTIONS
 function generate_first_admin(){
@@ -35,6 +39,25 @@ function generate_first_admin(){
 		chmod 700 $admin_user_creds
 		source $admin_user_creds
 	fi
+}
+
+function is_local(){
+	echo "Is it a local installation or a remote installation?"
+	echo "[1] Local"
+	echo "[2] Remote (SSH)"
+	local islocal
+	read -p "Enter choice [1 - 3]" islocal
+	case $islocal in
+		1) configure_nova_controller ;;
+		2)
+		b) echo "Go back" 
+		*) echo "Wrong choice"
+	esac
+}
+
+function exec_ssh(){
+	echo "Executing the script remotely"
+	
 }
 
 function configure_admin_openrc(){
@@ -116,7 +139,7 @@ function set_controller(){
 }
 
 function create_db(){
-	if [ -e db_installed ]; then
+	if [ -e lockfiles/db_installed ]; then
 		echo "DB Already configured"
 	else
 		configure_db_passwords
@@ -146,7 +169,7 @@ function create_db(){
 		GRANT ALL PRIVILEGES ON heat.* TO "heat"@"%" IDENTIFIED BY "password_db_heat";
 		FLUSH PRIVILEGES;
 EOF
-		touch db_installed
+		touch lockfiles/db_installed
 	fi
 }
 
@@ -182,7 +205,7 @@ function configure_keystone() {
 		keystone service-create --name=keystone --type=identity --description="OpenStack Identity"
 		#ENDPOINT CONFIGURATION
 		keystone endpoint-create --service-id=$(keystone service-list | awk '/ identity / {print $2}') --publicurl=http://$controller_node:5000/v2.0 --internalurl=http://$controller_node:5000/v2.0 --adminurl=http://$controller_node:35357/v2.0
-		touch keystone_installed
+		touch lockfiles/keystone_installed
 		# END KEYSTONE INSTALLATION
 	fi
 return
@@ -248,7 +271,7 @@ function install_glance(){
 		keystone service-create --name=glance --type=image --description="OpenStack Image Service"
 		sleep 5
 		keystone endpoint-create --service-id=$(keystone service-list | awk '/ image / {print $2}') --publicurl=http://$controller_node:9292 --internalurl=http://$controller_node:9292 --adminurl=http://$controller_node:9292
-		touch glance_installed
+		touch lockfiles/glance_installed
 	fi
 return
 }
@@ -293,7 +316,7 @@ function configure_cinder_controller(){
 		keystone endpoint-create --service-id=$(keystone service-list | awk '/ volumev2 / {print $2}') --publicurl=http://$controller_node:8776/v2/%\(tenant_id\)s --internalurl=http://$controller_node:8776/v2/%\(tenant_id\)s --adminurl=http://$controller_node:8776/v2/%\(tenant_id\)s
 		service cinder-scheduler restart
 		service cinder-api restart
-		touch cinder_controller_installed
+		touch lockfiles/cinder_controller_installed
 	fi
 }
 function configure_cinder_service(){
@@ -313,7 +336,7 @@ function configure_novarc(){
 }
 
 function configure_nova_generic(){
-	if [ -e nova_generic_installed ]; then
+	if [ -e lockfiles/nova_generic_installed ]; then
 		echo "Nova Controller already installed"
 	else
 		configure_novarc
@@ -343,12 +366,12 @@ function configure_nova_generic(){
 		echo "admin_tenant_name = service" >> $nova_conf
 		echo "admin_user = nova" >> $nova_conf
 		echo "admin_password = $nova_pass" >> $nova_conf
-		touch nova_generic_installed
+		touch lockfiles/nova_generic_installed
 	fi
 }
 
 function configure_nova_controller(){
-	if [ -e nova_controller_installed ]; then
+	if [ -e lockfiles/nova_controller_installed ]; then
 		echo "Nova Controller already installed"
 	else	
 		apt install -y nova-api nova-cert nova-conductor nova-consoleauth nova-novncproxy nova-scheduler python-novaclient
@@ -365,7 +388,7 @@ function configure_nova_controller(){
 		service nova-scheduler restart
 		service nova-conductor restart
 		service nova-novncproxy restart
-		touch nova_controller_installed	
+		touch lockfiles/nova_controller_installed	
 	fi
 }
 
@@ -395,20 +418,89 @@ function configure_nova_compute(){
 	fi
 }
 
-show_menus_nova(){
-	echo "[1] Install the nova Controller API Service"
-	echo "[2] Install the nova Compute Service"
-	echo "[3] Go back to the previous menu"
-	local choice
-	read -p "Enter choice [1 - 3]" choice
-	case $choice in
-	1) configure_nova_controller ;;
-	2) configure_nova_compute ;;
-	b) init_menu ;;
-	*) echo "Error: Select a number from the list" ;;
-	esac
+function configure_neutronrc(){
+	if [ -e "$neutronrc" ]; then
+		echo "The $neutronrc file already exists, sourcing it. "
+		source $neutronrc
+	else
+		neutron_pass=$(openssl rand -hex 16)
+		echo "neutron_pass=$neutron_pass" >> $neutronrc
+		chmod 700 $neutronrc
+		source $neutronrc
+	fi
 }
 
+function configure_neutron_ml2(){
+		sed -i "/\[ml2\]/ a\mechanism_drivers\ \=\ openvswitch" $ml2_conf_ini
+		sed -i "/\[ml2\]/ a\tenant_network_types\ \=\ gre" $ml2_conf_ini
+		sed -i "/\[ml2\]/ a\type_drivers\ \=\ gre" $ml2_conf_ini
+		sed -i "/\[ml2_type_gre\]/ a\tunnel_id_ranges\ \=\ 1\:1000" $ml2_conf_ini
+		sed -i "/\[securitygroup\]/ a\enable_security_group\ \=\ True" $ml2_conf_ini
+		sed -i "/\[securitygroup\]/ a\firewall_driver\ \=\ neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver" $ml2_conf_ini
+}
+
+function configure_neutron_conf(){
+		sed -i "s/connection\ \=\ \/\/\/\/var\/lib\/neutron\/neutron.sqlite/connection\ \=\ mysql\:\/\/neutron\:$neutron_db_glance\@$controller_node\/neutron/g" $neutron_conf
+		sed -i "s/\#\ auth_strategy\ \=\ keystone/auth_strategy\ \=\ keystone/g" $neutron_conf
+		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $controller_node/g" $neutron_conf
+		sed -i "s/\%SERVICE_TENANT_NAME\%/admin/g" $neutron_conf
+		sed -i "s/\%SERVICE_USER\%/neutron/g" $neutron_conf
+		sed -i "s/\%SERVICE_PASSWORD\%/$neutron_pass/g" $neutron_conf
+		sed -i "s/\#\ rabbit_host\ \=\ localhost/rabbit_host\ =\ $controller_node/g" $neutron_conf
+		sed -i "s/\#\ rabbit_password\ \=\ guest/rabbit_password\ \=\ $rabbit_pass/g" $neutron_conf
+		sed -i "/notify_nova_on_port_status_changes\ \=\ True/ s/# *//" $neutron_conf
+		sed -i "/notify_nova_on_port_data_changes\ \=\ True/ s/# *//" $neutron_conf
+		sed -i "s/\#\ nova_url\ \=\ http\:\/\/127.0.0.1\:8774\/v2/nova_url\ \=\http\:\/\/$controller_node\:8774\/v2/g" $neutron_conf
+		sed -i "s/\#\ nova_admin_username\ \=/nova_admin_username\ \=\ nova/g" $neutron_conf
+		nova_admin_tenant_id=$(keystone tenant-get service | awk '/ id / {print $4}')
+		sed -i "s/\#\ nova_admin_tenant_id\ \=/nova_admin_tenant_id\ \=\ $nova_admin_tenant_id/g" $neutron_conf
+		sed -i "s/\#\ nova_admin_password\ \=/nova_admin_password\ \=\ $nova_pass/g" $neutron_conf
+		sed -i "s/\#\ nova_admin_auth_url\ \=/nova_admin_auth_url\ \=\ http\:\/\/$controller_node\:35357\/v2.0/g" $neutron_conf
+		sed -i "/\[DEFAULT\]/ a\allow_overlapping_ips\ \=\ True" $neutron_conf
+		sed -i "/\[DEFAULT\]/ a\service_plugins\ \=\ router" $neutron_conf
+		sed -i "/\[DEFAULT\]/ a\core_plugin\ \=\ ml2" $neutron_conf
+}
+
+function configure_neutron_controller(){
+	if [ -e lockfiles/neutron_controller_installed ]; then
+		echo "Neutron controller service already installed"
+	else
+		apt-get install neutron-server neutron-plugin-ml2
+		configure_neutronrc
+		configure_rabbitmq
+		configure_admin_openrc
+		set_controller
+		cp $neutron_conf "confbak/neutron.conf.$(date +%F_%R)"
+		keystone user-create --name neutron --pass $neutron_pass --email neutron@example.com
+		keystone user-role-add --user neutron --tenant service --role admin
+		keystone service-create --name neutron --type network --description "OpenStack Networking"
+		keystone endpoint-create --service-id $(keystone service-list | awk '/ network / {print $2}') --publicurl http://$controller_node:9696 --adminurl http://$controller_node:9696 --internalurl http://$controller_node:9696
+		configure_neutron_conf
+		configure_neutron_ml2
+		configure_nova_controller
+		sed -i "/\[DEFAULT\]/ a\network_api_class = nova.network.neutronv2.api.API\\
+neutron_url = http:\/\/$controller_node:9696\\
+neutron_auth_strategy\ \=\ keystone\\
+neutron_admin_tenant_name\ \=\ service\\
+neutron_admin_username\ \=\ neutron\\
+neutron_admin_password\ \=\ $neutron_pass\\
+neutron_admin_auth_url\ \=\ http://$controller_node:35357/v2.0\\
+linuxnet_interface_driver\ \=\ nova.network.linux_net.LinuxOVSInterfaceDriver\\
+firewall_driver\ \=\ nova.virt.firewall.NoopFirewallDriver\\
+security_group_api\ \=\ neutron" $nova_conf
+		service nova-api restart
+		service nova-scheduler restart
+		service nova-conductor restart
+		service neutron-server restart
+		touch locxkfiles/neutron_controller_installed
+	fi
+}
+
+function configure_neutron_node(){
+	sed -i "/net.ipv4.ip_forward=1/ s/# *//" /etc/sysctl.conf
+	sysctl -p
+	apt install -y neutron-plugin-ml2 neutron-plugin-openvswitch-agent openvswitch-datapath-dkms neutron-l3-agent neutron-dhcp-agent
+}
 # OPERATIONS MENU
 show_menus(){
 	echo "REMEMBER TO UPDATE THE REPOSITORIES!"
@@ -429,22 +521,49 @@ show_menus(){
 
 read_options(){
 	local choice
-	read -p "Enter choice [1 - 13] " choice
+	read -p "Enter choice [1 - 12] " choice
 	case $choice in
-	1) configure_rabbitmq ;;
-	2) create_db ;;
-	3) configure_keystone ;;
-	4) install_glance ;;
-	5) configure_cinder_controller ;;
-	6) configure_cinder_service ;;	
-	7) show_menus_nova ;;
-	8) configure_neutron ;;
-	9) configure_swift ;;
-	10) configure_heat ;;
-	11) configure_ceilometer ;;
-	12) configure_horizon ;;
-	q) exit 0 ;;
-	*) echo "Error: Select a number from the list" ;;
+		1) configure_rabbitmq ;;
+		2) create_db ;;
+		3) configure_keystone ;;
+		4) install_glance ;;
+		5) configure_cinder_controller ;;
+		6) configure_cinder_service ;;	
+		7) show_menus_nova ;;
+		8) show_menus_neutron ;;
+		9) configure_swift ;;
+		10) configure_heat ;;
+		11) configure_ceilometer ;;
+		12) configure_horizon ;;
+		q) exit 0 ;;
+		*) echo "Error: Select a number from the list" ;;
+	esac
+}
+
+function show_menus_nova(){
+	echo "[1] Install the nova Controller API Service"
+	echo "[2] Install the nova Compute Service"
+	echo "[b] Go back to the previous menu"
+	local choice
+	read -p "Enter choice [1 - 3]" choice
+	case $choice in
+		1) configure_nova_controller ;;
+		2) configure_nova_compute ;;
+		b) init_menu ;;
+		*) echo "Error: Select a number from the list" ;;
+	esac
+}
+
+function show_menus_neutron(){
+	echo "[1] Install the Neutron Controller API Service"
+	echo "[2] Install the Neutron Network Service"
+	echo "[3] Install the Neutron service on a Compute Node"
+	echo "[b] Go back to the previous menu"
+	case $choice in
+		1) configure_neutron_controller ;;
+		2) configure_neutron_compute ;;
+		b) init_menu ;;
+		*) echo "Error: Select a number from the list" ;;
 	esac
 }
 
