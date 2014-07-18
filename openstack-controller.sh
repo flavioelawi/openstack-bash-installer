@@ -236,7 +236,7 @@ function configure_cinderrc(){
 }
 
 function install_glance(){
-	if [ -e glance_installed ]; then
+	if [ -e lockfiles/glance_installed ]; then
 		echo "Glance already installed"
 	else
 		set_controller
@@ -282,7 +282,7 @@ function configure_horizon(){
 }
 
 function configure_cinder_controller(){
-	if [ -e cinder_controller_installed ]; then
+	if [ -e lockfiles/cinder_controller_installed ]; then
 		echo "Cinder already installed"
 	else
 		apt install -y cinder-api cinder-scheduler
@@ -393,7 +393,7 @@ function configure_nova_controller(){
 }
 
 function configure_nova_compute(){
-	if [ -e nova_compute_installed ]; then
+	if [ -e lockfiles/nova_compute_installed ]; then
 		echo "Nova Compute already installed"
 	else	
 		apt install -y nova-compute-kvm python-guestfs python-mysqldb
@@ -407,7 +407,7 @@ function configure_nova_compute(){
 		echo "[ -z "${version}" ] && exit 0" >> $statoverride
 		echo "dpkg-statoverride --update --add root root 0644 /boot/vmlinuz-${version}" >> $statoverride
 		chmod +x $statoverride
-		touch nova_compute_installed
+		touch lockfiles/nova_compute_installed
 		if [ $(egrep -c '(vmx|svm)' /proc/cpuinfo) -eq 0 ]; then
 			echo "WARNING KVM ACCELERATION NOT ENABLED ON THIS HOST"
 			sed -i "s/virt_type\=kvm/virt_type\=qemu/g" $nova_compute_conf
@@ -492,7 +492,7 @@ security_group_api\ \=\ neutron" $nova_conf
 		service nova-scheduler restart
 		service nova-conductor restart
 		service neutron-server restart
-		touch locxkfiles/neutron_controller_installed
+		touch lockfiles/neutron_controller_installed
 	fi
 }
 
@@ -593,5 +593,3 @@ while true
 do
 	init_menu
 done
-
-
