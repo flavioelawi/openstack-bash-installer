@@ -49,9 +49,9 @@ function is_local(){
 	read -p "Enter choice [1 - 3]" islocal
 	case $islocal in
 		1) configure_nova_controller ;;
-		2) remote ;;
-		b) echo "Go back" ;;
-		*) echo "Wrong choice" ;;
+		2)
+		b) echo "Go back" 
+		*) echo "Wrong choice"
 	esac
 }
 
@@ -236,7 +236,7 @@ function configure_cinderrc(){
 }
 
 function install_glance(){
-	if [ -e lockfiles/glance_installed ]; then
+	if [ -e glance_installed ]; then
 		echo "Glance already installed"
 	else
 		set_controller
@@ -249,18 +249,23 @@ function install_glance(){
 		cp $glance_api_conf "confbak/glance-api.conf.$(date +%F_%R)"
 		cp $glance_registry_conf "confbak/glance-registry.conf.$(date +%F_%R)"
 		# PARSE AND CHANGE API FILE
+		sed -i "/\[DEFAULT\]/ a\rpc_backend\ \=\ rabbit\\
+rabbit_host\ \=\ $controller_node\\
+rabbit_password\ \=\ $rabbit_pass" $glance_api_conf
+		sed -i "/\[keystone_authtoken\]/ a\auth_uri\ \=\ http\:\/\/$controller_node\:5000" $glance_api_conf
 		sed -i "s/sqlite_db\ \=\ \/var\/lib\/glance\/glance.sqlite/connection\ \=\ mysql\:\/\/glance\:$password_db_glance\@$controller_node\/glance/g" $glance_api_conf
-		sed -i "s/\#rabbit_password\=guest/rabbit_password\=$rabbit_pass/g" $glance_api_conf
 		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $controller_node/g" $glance_api_conf		
-		sed -i "s/\%SERVICE_TENANT_NAME\%/admin/g" $glance_api_conf
+		sed -i "s/\%SERVICE_TENANT_NAME\%/service/g" $glance_api_conf
 		sed -i "s/\%SERVICE_USER\%/glance/g" $glance_api_conf
 		sed -i "s/\%SERVICE_PASSWORD\%/$glance_pass/g" $glance_api_conf
 		sed -i "s/\#flavor\=/flavor\=keystone/g" $glance_api_conf
 		# PARSE AND CHANGE REGISTRY FILE
+		sed -i "/\[keystone_authtoken\]/ a\auth_uri\ \=\ http\:\/\/$controller_node\:5000" $glance_registry_conf
 		sed -i "s/sqlite_db\ \=\ \/var\/lib\/glance\/glance.sqlite/connection\ \=\ mysql\:\/\/glance\:$password_db_glance\@$controller_node\/glance/g" $glance_registry_conf
-		sed -i "s/\#rabbit_password\=guest/rabbit_password\=$rabbit_pass/g" $glance_registry_conf
+		sed -i "s/rabbit_host\ \=\ localhost/rabbit_host\ \=\ $controller_node/g" $glance_registry_conf		
+		sed -i "s/\rabbit_password\ \=\ guest/rabbit_password\ \=\ $rabbit_pass/g" $glance_registry_conf
 		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $controller_node/g" $glance_registry_conf		
-		sed -i "s/\%SERVICE_TENANT_NAME\%/admin/g" $glance_registry_conf
+		sed -i "s/\%SERVICE_TENANT_NAME\%/service/g" $glance_registry_conf
 		sed -i "s/\%SERVICE_USER\%/glance/g" $glance_registry_conf
 		sed -i "s/\%SERVICE_PASSWORD\%/$glance_pass/g" $glance_registry_conf
 		sed -i "s/\#flavor\=/flavor\=keystone/g" $glance_registry_conf
@@ -282,7 +287,7 @@ function configure_horizon(){
 }
 
 function configure_cinder_controller(){
-	if [ -e lockfiles/cinder_controller_installed ]; then
+	if [ -e cinder_controller_installed ]; then
 		echo "Cinder already installed"
 	else
 		apt install -y cinder-api cinder-scheduler
@@ -393,7 +398,7 @@ function configure_nova_controller(){
 }
 
 function configure_nova_compute(){
-	if [ -e lockfiles/nova_compute_installed ]; then
+	if [ -e nova_compute_installed ]; then
 		echo "Nova Compute already installed"
 	else	
 		apt install -y nova-compute-kvm python-guestfs python-mysqldb
@@ -407,7 +412,7 @@ function configure_nova_compute(){
 		echo "[ -z "${version}" ] && exit 0" >> $statoverride
 		echo "dpkg-statoverride --update --add root root 0644 /boot/vmlinuz-${version}" >> $statoverride
 		chmod +x $statoverride
-		touch lockfiles/nova_compute_installed
+		touch nova_compute_installed
 		if [ $(egrep -c '(vmx|svm)' /proc/cpuinfo) -eq 0 ]; then
 			echo "WARNING KVM ACCELERATION NOT ENABLED ON THIS HOST"
 			sed -i "s/virt_type\=kvm/virt_type\=qemu/g" $nova_compute_conf
@@ -440,7 +445,10 @@ function configure_neutron_ml2(){
 }
 
 function configure_neutron_conf(){
-		sed -i "s/connection\ \=\ sqlite\:\/\/\/\/var\/lib\/neutron\/neutron.sqlite/connection\ \=\ mysql\:\/\/neutron\:$neutron_db_glance\@$controller_node\/neutron/g" $neutron_conf
+		configure_neutronrc
+		create_db
+		sed -i "/\[keystone_authtoken\]/ a\auth_uri\ \=\ http\:\/\/$controller_node\:5000" $neutron_conf
+		sed -i "s/connection\ \=\ \/\/\/\/var\/lib\/neutron\/neutron.sqlite/connection\ \=\ mysql\:\/\/neutron\:$password_db_neutron\@$controller_node\/neutron/g" $neutron_conf
 		sed -i "s/\#\ auth_strategy\ \=\ keystone/auth_strategy\ \=\ keystone/g" $neutron_conf
 		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $controller_node/g" $neutron_conf
 		sed -i "s/\%SERVICE_TENANT_NAME\%/admin/g" $neutron_conf
@@ -465,7 +473,7 @@ function configure_neutron_controller(){
 	if [ -e lockfiles/neutron_controller_installed ]; then
 		echo "Neutron controller service already installed"
 	else
-		apt-get install neutron-server neutron-plugin-ml2
+		apt-get install -y neutron-server neutron-plugin-ml2
 		configure_neutronrc
 		configure_rabbitmq
 		configure_admin_openrc
@@ -492,7 +500,7 @@ security_group_api\ \=\ neutron" $nova_conf
 		service nova-scheduler restart
 		service nova-conductor restart
 		service neutron-server restart
-		touch lockfiles/neutron_controller_installed
+		touch locxkfiles/neutron_controller_installed
 	fi
 }
 
@@ -593,3 +601,4 @@ while true
 do
 	init_menu
 done
+
