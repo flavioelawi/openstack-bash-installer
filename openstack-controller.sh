@@ -180,7 +180,7 @@ EOF
 
 function configure_keystone() {
 # KEYSTONE INSTALLATION
-	if [ -e keystone_installed ]; then
+	if [ -e lockfiles/keystone_installed ]; then
 		echo "Keystone already installed"
 	else
 		create_db
@@ -241,7 +241,7 @@ function configure_cinderrc(){
 }
 
 function install_glance(){
-	if [ -e glance_installed ]; then
+	if [ -e lockfiles/glance_installed ]; then
 		echo "Glance already installed"
 	else
 		set_controller
@@ -293,7 +293,7 @@ function configure_horizon(){
 }
 
 function configure_cinder_controller(){
-	if [ -e cinder_controller_installed ]; then
+	if [ -e lockfiles/cinder_controller_installed ]; then
 		echo "Cinder already installed"
 	else
 		apt install -y cinder-api cinder-scheduler
@@ -404,7 +404,7 @@ function configure_nova_controller(){
 }
 
 function configure_nova_compute(){
-	if [ -e nova_compute_installed ]; then
+	if [ -e lockfiles/nova_compute_installed ]; then
 		echo "Nova Compute already installed"
 	else	
 		apt install -y nova-compute-kvm python-guestfs python-mysqldb
@@ -418,7 +418,7 @@ function configure_nova_compute(){
 		echo "[ -z "${version}" ] && exit 0" >> $statoverride
 		echo "dpkg-statoverride --update --add root root 0644 /boot/vmlinuz-${version}" >> $statoverride
 		chmod +x $statoverride
-		touch nova_compute_installed
+		touch lockfiles/nova_compute_installed
 		if [ $(egrep -c '(vmx|svm)' /proc/cpuinfo) -eq 0 ]; then
 			echo "WARNING KVM ACCELERATION NOT ENABLED ON THIS HOST"
 			sed -i "s/virt_type\=kvm/virt_type\=qemu/g" $nova_compute_conf
@@ -522,18 +522,19 @@ function configure_neutron_novaconf(){
 	if [ -e lockfiles/neutron_nova_configured ]; then
 		echo "Neutron controller service already installed"
 	else
-		sed -i "/\[DEFAULT\]/ a\network_api_class = nova.network.neutronv2.api.API\\
-		service_neutron_metadata_proxy = true\\
-		neutron_metadata_proxy_shared_secret = $metadata_pass\\
-		neutron_url = http:\/\/$controller_node:9696\\
+		sed -i "/\[DEFAULT\]/ a\network_api_class\ \=\ nova.network.neutronv2.api.API\\
+		service_neutron_metadata_proxy\ \=\ true\\
+		neutron_metadata_proxy_shared_secret\ \=\ $metadata_pass\\
+		neutron_url\ \=\ http:\/\/$controller_node\:9696\\
 		neutron_auth_strategy\ \=\ keystone\\
 		neutron_admin_tenant_name\ \=\ service\\
 		neutron_admin_username\ \=\ neutron\\
 		neutron_admin_password\ \=\ $neutron_pass\\
-		neutron_admin_auth_url\ \=\ http://$controller_node:35357/v2.0\\
+		neutron_admin_auth_url\ \=\ http\:\/\/$controller_node\:35357\/v2.0\\
 		linuxnet_interface_driver\ \=\ nova.network.linux_net.LinuxOVSInterfaceDriver\\
 		firewall_driver\ \=\ nova.virt.firewall.NoopFirewallDriver\\
 		security_group_api\ \=\ neutron" $nova_conf
+		touch lockfiles/neutron_nova_configured
 	fi
 }
 
@@ -560,7 +561,7 @@ function configure_neutron_controller(){
 		service nova-scheduler restart
 		service nova-conductor restart
 		service neutron-server restart
-		touch locxkfiles/neutron_controller_installed
+		touch lockfiles/neutron_controller_installed
 	fi
 }
 
@@ -668,7 +669,7 @@ function show_menus_neutron(){
 	echo "[3] Install the Neutron service on a Compute Node"
 	echo "[b] Go back to the previous menu"
 	local choice
-	read -p "Enter choice [1 - 2]" choice
+	read -p "Enter choice [1 - 3]" choice
 	case $choice in
 		1) configure_neutron_controller ;;
 		2) configure_neutron_node ;;
