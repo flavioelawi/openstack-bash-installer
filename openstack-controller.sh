@@ -136,7 +136,7 @@ function set_controller(){
 	else
 		echo "Insert the FQDN or IP of the controller node"
 		read controller_node
-		echo "controller_hostname=$controller_node" >> $controller_node_file
+		echo "controller_node=$controller_node" >> $controller_node_file
 		chmod 700 $controller_node_file
 		source $controller_node_file
 	fi
