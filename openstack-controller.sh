@@ -53,9 +53,9 @@ function is_local(){
 	read -p "Enter choice [1 - 3]" islocal
 	case $islocal in
 		1) configure_nova_controller ;;
-		2)
-		b) echo "Go back" 
-		*) echo "Wrong choice"
+		2) ;;
+		b) echo "Go back" ;;
+		*) echo "Wrong choice" ;;
 	esac
 }
 
