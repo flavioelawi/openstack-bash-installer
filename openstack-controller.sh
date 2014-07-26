@@ -654,7 +654,7 @@ function show_menus_cinder_type(){
 	echo "[2] Configure NFS Network Storage"
 	local choice
 	read -p "Enter choise [1 - 3]" choice
-	cace $choice in
+	case $choice in
 		1) configure_cinder_lvm ;;
 		2) configure_cinder_nfs ;;
 		b) show_menus_cinder ;;
