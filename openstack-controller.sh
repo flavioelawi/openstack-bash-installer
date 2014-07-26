@@ -442,12 +442,17 @@ function configure_neutronrc(){
 }
 
 function configure_neutron_ml2(){
-	sed -i "/\[ml2\]/ a\mechanism_drivers\ \=\ openvswitch" $ml2_conf_ini
-	sed -i "/\[ml2\]/ a\tenant_network_types\ \=\ gre" $ml2_conf_ini
-	sed -i "/\[ml2\]/ a\type_drivers\ \=\ gre" $ml2_conf_ini
-	sed -i "/\[ml2_type_gre\]/ a\tunnel_id_ranges\ \=\ 1\:1000" $ml2_conf_ini
-	sed -i "/\[securitygroup\]/ a\enable_security_group\ \=\ True" $ml2_conf_ini
-	sed -i "/\[securitygroup\]/ a\firewall_driver\ \=\ neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver" $ml2_conf_ini
+	if [ -e lockfiles/neutron_ml2_installed ]; then
+		echo "Neutron ml2 file already configured"
+	else
+		sed -i "/\[ml2\]/ a\mechanism_drivers\ \=\ openvswitch" $ml2_conf_ini
+		sed -i "/\[ml2\]/ a\tenant_network_types\ \=\ gre" $ml2_conf_ini
+		sed -i "/\[ml2\]/ a\type_drivers\ \=\ gre" $ml2_conf_ini
+		sed -i "/\[ml2_type_gre\]/ a\tunnel_id_ranges\ \=\ 1\:1000" $ml2_conf_ini
+		sed -i "/\[securitygroup\]/ a\enable_security_group\ \=\ True" $ml2_conf_ini
+		sed -i "/\[securitygroup\]/ a\firewall_driver\ \=\ neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver" $ml2_conf_ini
+		touch lockfiles/neutron_ml2_installed
+	fi
 }
 
 function configure_neutron_ml2_node(){
@@ -472,26 +477,32 @@ function configure_neutron_dhcp_agent(){
 
 function configure_neutron_conf(){
 	configure_neutronrc
-	sed -i "/\[keystone_authtoken\]/ a\auth_uri\ \=\ http\:\/\/$controller_node\:5000" $neutron_conf
-	sed -i "s/connection\ \=\ \/\/\/\/var\/lib\/neutron\/neutron.sqlite/connection\ \=\ mysql\:\/\/neutron\:$password_db_neutron\@$controller_node\/neutron/g" $neutron_conf
-	sed -i "s/\#\ auth_strategy\ \=\ keystone/auth_strategy\ \=\ keystone/g" $neutron_conf
-	sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $controller_node/g" $neutron_conf
-	sed -i "s/\%SERVICE_TENANT_NAME\%/admin/g" $neutron_conf
-	sed -i "s/\%SERVICE_USER\%/neutron/g" $neutron_conf
-	sed -i "s/\%SERVICE_PASSWORD\%/$neutron_pass/g" $neutron_conf
-	sed -i "s/\#\ rabbit_host\ \=\ localhost/rabbit_host\ =\ $controller_node/g" $neutron_conf
-	sed -i "s/\#\ rabbit_password\ \=\ guest/rabbit_password\ \=\ $rabbit_pass/g" $neutron_conf
-	sed -i "/notify_nova_on_port_status_changes\ \=\ True/ s/# *//" $neutron_conf
-	sed -i "/notify_nova_on_port_data_changes\ \=\ True/ s/# *//" $neutron_conf
-	sed -i "s/\#\ nova_url\ \=\ http\:\/\/127.0.0.1\:8774\/v2/nova_url\ \=\http\:\/\/$controller_node\:8774\/v2/g" $neutron_conf
-	sed -i "s/\#\ nova_admin_username\ \=/nova_admin_username\ \=\ nova/g" $neutron_conf
-	nova_admin_tenant_id=$(keystone tenant-get service | awk '/ id / {print $4}')
-	sed -i "s/\#\ nova_admin_tenant_id\ \=/nova_admin_tenant_id\ \=\ $nova_admin_tenant_id/g" $neutron_conf
-	sed -i "s/\#\ nova_admin_password\ \=/nova_admin_password\ \=\ $nova_pass/g" $neutron_conf
-	sed -i "s/\#\ nova_admin_auth_url\ \=/nova_admin_auth_url\ \=\ http\:\/\/$controller_node\:35357\/v2.0/g" $neutron_conf
-	sed -i "/\[DEFAULT\]/ a\allow_overlapping_ips\ \=\ True" $neutron_conf
-	sed -i "/\[DEFAULT\]/ a\service_plugins\ \=\ router" $neutron_conf
-	sed -i "/\[DEFAULT\]/ a\core_plugin\ \=\ ml2" $neutron_conf
+	if [ -e lockfiles/neutron_conf_installed ]; then
+		echo "Neutron conf file already configured"
+	else	
+		cp $neutron_conf "confbak/neutron.conf.$(date +%F_%R)"	
+		sed -i "/\[keystone_authtoken\]/ a\auth_uri\ \=\ http\:\/\/$controller_node\:5000" $neutron_conf
+		sed -i "s/connection\ \=\ \/\/\/\/var\/lib\/neutron\/neutron.sqlite/connection\ \=\ mysql\:\/\/neutron\:$password_db_neutron\@$controller_node\/neutron/g" $neutron_conf
+		sed -i "s/\#\ auth_strategy\ \=\ keystone/auth_strategy\ \=\ keystone/g" $neutron_conf
+		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $controller_node/g" $neutron_conf
+		sed -i "s/\%SERVICE_TENANT_NAME\%/admin/g" $neutron_conf
+		sed -i "s/\%SERVICE_USER\%/neutron/g" $neutron_conf
+		sed -i "s/\%SERVICE_PASSWORD\%/$neutron_pass/g" $neutron_conf
+		sed -i "s/\#\ rabbit_host\ \=\ localhost/rabbit_host\ =\ $controller_node/g" $neutron_conf
+		sed -i "s/\#\ rabbit_password\ \=\ guest/rabbit_password\ \=\ $rabbit_pass/g" $neutron_conf
+		sed -i "/notify_nova_on_port_status_changes\ \=\ True/ s/# *//" $neutron_conf
+		sed -i "/notify_nova_on_port_data_changes\ \=\ True/ s/# *//" $neutron_conf
+		sed -i "s/\#\ nova_url\ \=\ http\:\/\/127.0.0.1\:8774\/v2/nova_url\ \=\http\:\/\/$controller_node\:8774\/v2/g" $neutron_conf
+		sed -i "s/\#\ nova_admin_username\ \=/nova_admin_username\ \=\ nova/g" $neutron_conf
+		nova_admin_tenant_id=$(keystone tenant-get service | awk '/ id / {print $4}')
+		sed -i "s/\#\ nova_admin_tenant_id\ \=/nova_admin_tenant_id\ \=\ $nova_admin_tenant_id/g" $neutron_conf
+		sed -i "s/\#\ nova_admin_password\ \=/nova_admin_password\ \=\ $nova_pass/g" $neutron_conf
+		sed -i "s/\#\ nova_admin_auth_url\ \=/nova_admin_auth_url\ \=\ http\:\/\/$controller_node\:35357\/v2.0/g" $neutron_conf
+		sed -i "/\[DEFAULT\]/ a\allow_overlapping_ips\ \=\ True" $neutron_conf
+		sed -i "/\[DEFAULT\]/ a\service_plugins\ \=\ router" $neutron_conf
+		sed -i "/\[DEFAULT\]/ a\core_plugin\ \=\ ml2" $neutron_conf
+		touch lockfiles/neutron_conf_installed
+	fi
 }
 
 configure_neutron_metadatarc(){
@@ -522,18 +533,19 @@ function configure_neutron_novaconf(){
 	if [ -e lockfiles/neutron_nova_configured ]; then
 		echo "Neutron controller service already installed"
 	else
+		cp $nova_conf "confbak/neutron.conf.$(date +%F_%R)"	
 		sed -i "/\[DEFAULT\]/ a\network_api_class\ \=\ nova.network.neutronv2.api.API\\
-		service_neutron_metadata_proxy\ \=\ true\\
-		neutron_metadata_proxy_shared_secret\ \=\ $metadata_pass\\
-		neutron_url\ \=\ http:\/\/$controller_node\:9696\\
-		neutron_auth_strategy\ \=\ keystone\\
-		neutron_admin_tenant_name\ \=\ service\\
-		neutron_admin_username\ \=\ neutron\\
-		neutron_admin_password\ \=\ $neutron_pass\\
-		neutron_admin_auth_url\ \=\ http\:\/\/$controller_node\:35357\/v2.0\\
-		linuxnet_interface_driver\ \=\ nova.network.linux_net.LinuxOVSInterfaceDriver\\
-		firewall_driver\ \=\ nova.virt.firewall.NoopFirewallDriver\\
-		security_group_api\ \=\ neutron" $nova_conf
+service_neutron_metadata_proxy\ \=\ true\\
+neutron_metadata_proxy_shared_secret\ \=\ $metadata_pass\\
+neutron_url\ \=\ http:\/\/$controller_node\:9696\\
+neutron_auth_strategy\ \=\ keystone\\
+neutron_admin_tenant_name\ \=\ service\\
+neutron_admin_username\ \=\ neutron\\
+neutron_admin_password\ \=\ $neutron_pass\\
+neutron_admin_auth_url\ \=\ http\:\/\/$controller_node\:35357\/v2.0\\
+linuxnet_interface_driver\ \=\ nova.network.linux_net.LinuxOVSInterfaceDriver\\
+firewall_driver\ \=\ nova.virt.firewall.NoopFirewallDriver\\
+security_group_api\ \=\ neutron" $nova_conf
 		touch lockfiles/neutron_nova_configured
 	fi
 }
