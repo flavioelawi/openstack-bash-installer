@@ -649,6 +649,19 @@ function show_menus_cinder(){
 	esac
 }
 
+function show_menus_cinder_type(){
+	echo "[1] Configure LVM2 Block Storage"
+	echo "[2] Configure NFS Network Storage"
+	local choice
+	read -p "Enter choise [1 - 3]" choice
+	cace $choice in
+		1) configure_cinder_lvm ;;
+		2) configure_cinder_nfs ;;
+		b) show_menus_cinder ;;
+		*) echo "Error: Select a number from the list" ;;
+	esac
+}
+
 function show_menus_nova(){
 	echo "[1] Install the nova Controller API Service"
 	echo "[2] Install the nova Compute Service"
