@@ -120,7 +120,7 @@ function  configure_rabbitmq(){
 		echo "The $rabbitrc file already exists, sourcing it. "
 		source $rabbitrc
 	else
-		apt install -y rabbitmq-server
+		apt-get install -y rabbitmq-server
 		rabbit_pass=$(openssl rand -hex 16)
 		rabbitmqctl change_password guest $rabbit_pass
 		echo "rabbit_pass=$rabbit_pass" >> $rabbitrc
@@ -147,7 +147,7 @@ function create_db(){
 		echo "DB Already configured"
 	else
 		configure_db_passwords
-		apt install -y python-mysqldb mysql-server rabbitmq-server
+		apt-get install -y python-mysqldb mysql-server rabbitmq-server
 		mysql_secure_installation
 		sed -i "s/127.0.0.1/0.0.0.0/g" /etc/mysql/my.cnf
 		service mysql restart
@@ -188,7 +188,7 @@ function configure_keystone() {
 		set_controller
 		configure_openrc
 		echo "Installing Openstack keystone server"
-		apt install -y keystone python-keystone python-keystoneclient
+		apt-get install -y keystone python-keystone python-keystoneclient
 		echo "Creating backup config file (Keystone) "
 		cp $keystone_conf "confbak/keystone.conf.$(date +%F_%R)"	
 		echo "Configuring Keystone config file"
@@ -249,7 +249,7 @@ function install_glance(){
 		configure_glancerc
 		create_db
 		configure_rabbitmq
-		apt install -y glance python-glanceclient
+		apt-get install -y glance python-glanceclient
 		keystone user-create --name=glance --pass=$glance_pass --email=glance@example.com
 		keystone user-role-add --user=glance --tenant=service --role=admin
 		cp $glance_api_conf "confbak/glance-api.conf.$(date +%F_%R)"
@@ -288,7 +288,7 @@ return
 }
 
 function configure_horizon(){
-	apt install -y apache2 memcached libapache2-mod-wsgi openstack-dashboard
+	apt-get install -y apache2 memcached libapache2-mod-wsgi openstack-dashboard
 	apt-get remove --purge -y openstack-dashboard-ubuntu-theme
 }
 
@@ -296,7 +296,7 @@ function configure_cinder_controller(){
 	if [ -e lockfiles/cinder_controller_installed ]; then
 		echo "Cinder already installed"
 	else
-		apt install -y cinder-api cinder-scheduler
+		apt-get install -y cinder-api cinder-scheduler
 		set_controller
 		cp $cinder_conf "confbak/cinder.conf.$(date +%F_%R)"
 		configure_rabbitmq
@@ -331,7 +331,7 @@ function configure_cinder_controller(){
 	fi
 }
 function configure_cinder_service(){
-	apt install -y cinder-volume
+	apt-get install -y cinder-volume
 }
 
 function configure_novarc(){
@@ -385,7 +385,7 @@ function configure_nova_controller(){
 	if [ -e lockfiles/nova_controller_installed ]; then
 		echo "Nova Controller already installed"
 	else	
-		apt install -y nova-api nova-cert nova-conductor nova-consoleauth nova-novncproxy nova-scheduler python-novaclient
+		apt-get install -y nova-api nova-cert nova-conductor nova-consoleauth nova-novncproxy nova-scheduler python-novaclient
 		cp $nova_conf "confbak/nova.conf.$(date +%F_%R)"
 		configure_nova_generic
 		keystone user-create --name=nova --pass=$nova_pass --email=nova@example.com
@@ -407,7 +407,7 @@ function configure_nova_compute(){
 	if [ -e lockfiles/nova_compute_installed ]; then
 		echo "Nova Compute already installed"
 	else	
-		apt install -y nova-compute-kvm python-guestfs python-mysqldb
+		apt-get install -y nova-compute-kvm python-guestfs python-mysqldb
 		cp $nova_compute_conf "confbak/nova-compute.conf.$(date +%F_%R)"
 		cp $nova_conf "confbak/nova.conf.$(date +%F_%R)"
 		configure_nova_generic
@@ -580,7 +580,7 @@ function configure_neutron_controller(){
 function configure_neutron_node(){
 	sed -i "/net.ipv4.ip_forward=1/ s/# *//" /etc/sysctl.conf
 	sysctl -p
-	apt install -y neutron-plugin-ml2 neutron-plugin-openvswitch-agent openvswitch-datapath-dkms neutron-l3-agent neutron-dhcp-agent
+	apt-get install -y neutron-plugin-ml2 neutron-plugin-openvswitch-agent openvswitch-datapath-dkms neutron-l3-agent neutron-dhcp-agent
 	configure_neutron_conf
 	configure_neutron_ml3
 	configure_neutron_dhcp_agent
@@ -601,7 +601,7 @@ function configure_neutron_node(){
 }
 
 function configure_neutron_compute(){
-	apt install -y neutron-common neutron-plugin-ml2 neutron-plugin-openvswitch-agent openvswitch-datapath-dkms
+	apt-get install -y neutron-common neutron-plugin-ml2 neutron-plugin-openvswitch-agent openvswitch-datapath-dkms
 	configure_neutron_conf
 	configure_neutron_ml2
 	service openvswitch-switch restart
