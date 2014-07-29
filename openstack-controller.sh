@@ -477,6 +477,7 @@ function configure_neutron_dhcp_agent(){
 
 function configure_neutron_conf(){
 	configure_neutronrc
+	configure_novarc
 	if [ -e lockfiles/neutron_conf_installed ]; then
 		echo "Neutron conf file already configured"
 	else	
@@ -590,6 +591,7 @@ function configure_neutron_node(){
 	service openvswitch-switch restart
 	ovs-vsctl add-br br-int
 	ovs-vsctl add-br br-ex
+	ip addr
 	echo "Enter the external interface name eg.: eth0 eth1"
 	read external_interface
 	ovs-vsctl add-port br-ex $external_interface
