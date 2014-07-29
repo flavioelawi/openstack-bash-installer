@@ -602,6 +602,8 @@ function configure_neutron_node(){
 
 function configure_neutron_compute(){
 	apt-get install -y neutron-common neutron-plugin-ml2 neutron-plugin-openvswitch-agent openvswitch-datapath-dkms
+	configure_rabbitmq
+	set_controller
 	configure_neutron_conf
 	configure_neutron_ml2
 	service openvswitch-switch restart
