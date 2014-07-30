@@ -76,7 +76,7 @@ function set_host_generic_controller(){
 }
 
 function set_host_rabbitmq(){
-	if [ $single_controller_flag -eq 1 ]; then
+	if [ "$single_controller_flag" -eq 1 ]; then
 		echo "It's a generic controller installation, not asking anything"
 	else
 		if [ -e "$host_rabbitmq_file" ]; then
@@ -105,7 +105,7 @@ function set_host_rabbitmq(){
 }
 
 function set_host_keystone(){
-	if [ $single_controller_flag -eq 1 ]; then
+	if [ "$single_controller_flag" -eq 1 ]; then
 		echo "It's a generic controller installation, not asking anything"
 	else
 		if [ -e "$host_keystone_file" ]; then
@@ -134,7 +134,7 @@ function set_host_keystone(){
 }
 
 function set_host_cinder_api(){
-	if [ $single_controller_flag -eq 1 ]; then
+	if [ "$single_controller_flag" -eq 1 ]; then
 		echo "It's a generic controller installation, not asking anything"
 	else
 		if [ -e "$host_cinder_api_file" ]; then
@@ -163,7 +163,7 @@ function set_host_cinder_api(){
 }
 
 function set_host_glance_api(){
-	if [ $single_controller_flag -eq 1 ]; then
+	if [ "$single_controller_flag" -eq 1 ]; then
 		echo "It's a generic controller installation, not asking anything"
 	else
 		if [ -e "$host_glance_api_file" ]; then
@@ -193,7 +193,7 @@ function set_host_glance_api(){
 }	
 	
 function set_host_neutron_api(){
-	if [ $single_controller_flag -eq 1 ]; then
+	if [ "$single_controller_flag" -eq 1 ]; then
 		echo "It's a generic controller installation, not asking anything"
 	else
 		if [ -e "$host_neutron_api_file" ]; then
@@ -222,7 +222,7 @@ function set_host_neutron_api(){
 }
 
 function set_host_nova_api(){
-	if [ $single_controller_flag -eq 1 ]; then
+	if [ "$single_controller_flag" -eq 1 ]; then
 		echo "It's a generic controller installation, not asking anything"
 	else
 		if [ -e "$host_nova_api_file" ]; then
@@ -251,7 +251,7 @@ function set_host_nova_api(){
 }
 
 function set_host_mysql_server(){
-	if [ $single_controller_flag -eq 1 ]; then
+	if [ "$single_controller_flag" -eq 1 ]; then
 		echo "It's a generic controller installation, not asking anything"
 	else
 		if [ -e "$host_mysql_file" ]; then
