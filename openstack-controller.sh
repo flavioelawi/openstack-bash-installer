@@ -3,6 +3,7 @@
 mkdir rcfiles
 mkdir confbak
 mkdir lockfiles
+mkdir -p rcfiles/hosts
 openstack_db_pass=rcfiles/openstack_db_pass
 openrc=rcfiles/openrc
 admin_openrc=rcfiles/admin_openrc
@@ -26,8 +27,252 @@ ml2_conf_ini="/etc/neutron/plugins/ml2/ml2_conf.ini"
 ml3_conf_agent_ini="/etc/neutron/l3_agent.ini"
 dhcp_agent_ini="/etc/neutron/dhcp_agent.ini"
 metadata_agent_ini="/etc/neutron/metadata_agent.ini"
-
+host_mysql_file="rcfiles/hosts/mysql"
+host_rabbitmq_file="rcfiles/hosts/rabbitmq"
+host_keystone_file="rcfiles/hosts/keystone"
+host_cinder_api_file="rcfiles/hosts/cinder-api"
+host_glance_api_file="rcfiles/hosts/glance-api"
+host_neutron_api_file="rcfiles/hosts/neutron-api"
+host_nova_api_file="rcfiles/hosts/nova-api"
 # FUNCTIONS
+
+function set_host_generic_controller(){
+	echo "WARNING, THIS WILL SET ALL THE API HOSTS TO A SINGLE NODE, IT WILL OVERWRITE THE EXISTING HOSTS FILES IN rcfiles/hosts"
+	echo "THE FOLLOWING COMPONENTS WILL BE INSTALLED AND CONFIGURED ON THIS HOST:"
+	echo "mysql-server"
+	echo "rabbitmq-server"
+	echo "keystone"
+	echo "cinder-api"
+	echo "glance-api"
+	echo "nova-api"
+	echo "neutron-api"
+	echo "YOU WANT TO CONTINUE?"
+	echo "[1] Yes"
+	echo "[2] No"
+	local choice
+	read -p "Enter choice [1 - 2]" choice
+	case $choice in
+		1)	echo "Set the hostname or the IP Address of the Controller node: "
+			read host_controller
+			echo "host_rabbitmq=$host_controller" > $host_rabbitmq_file
+			echo "host_keystone=$host_controller" > $host_keystone_file
+			echo "host_cinder_api=$host_controller" > $host_cinder_api_file
+			echo "host_glance_api=$host_controller" > $host_glance_api_file
+			echo "host_neutron_api=$host_controller" > $host_neutron_api_file
+			echo "host_nova_api=$host_controller" > $host_nova_api_file
+			echo "host_mysql_server=$host_host_controller" > $host_mysql_file
+			single_controller_flag="1"
+			;;
+		2) exit 0 ;;
+		*) echo "Error: Select a number from the list" ;;
+	esac
+}
+
+function set_host_rabbitmq(){
+	if [ $single_controller_flag -eq 1 ]; then
+		echo "It's a generic controller installation, not asking anything"
+	else
+		if [ -e "$host_rabbitmq_file" ]; then
+			echo "The $host_rabbitmq_file file already exists, do you want to source it or do you want to set it to another host? "
+			echo "The content is: "
+			echo "$host_rabbitmq_file"
+			echo "[1] Source it"
+			echo "[2] Set it to the local hostname: $HOSTNAME"
+			echo "[3] Set it to another host"
+			local choice
+			read -p "Enter choice [1 - 3]" choice
+			case $choice in
+				1) source $host_rabbitmq_file  ;;
+				2) echo "host_rabbitmq=$HOSTNAME" > $host_rabbitmq_file ;;
+				3) echo "Set the hostname or the IP Address of the Rabbitmq-server: "
+					read host_rabbitmq
+					echo "host_rabbitmq=$host_rabbitmq" > $host_rabbitmq_file ;;
+				*) echo "Error: Select a number from the list" ;;
+			esac
+		else
+			echo "Set the hostname or the IP Address of the Rabbitmq-server: "
+			read host_rabbitmq
+			echo "host_rabbitmq=$host_rabbitmq" > $host_rabbitmq_file
+		fi
+	fi
+}
+
+function set_host_keystone(){
+	if [ $single_controller_flag -eq 1 ]; then
+		echo "It's a generic controller installation, not asking anything"
+	else
+		if [ -e "$host_keystone_file" ]; then
+			echo "The $host_keystone_file file already exists, do you want to source it or do you want to set it to another host? "
+			echo "The content is: "
+			echo "$host_keystone_file"
+			echo "[1] Source it"
+			echo "[2] Set it to the local hostname: $HOSTNAME"
+			echo "[3] Set it to another host"
+			local choice
+			read -p "Enter choice [1 - 3]" choice
+			case $choice in
+				1) source $host_keystone_file  ;;
+				2) echo "host_keystone=$HOSTNAME" > $host_keystone_file ;;
+				3) echo "Set the hostname or the IP Address of the keystone-server: "
+					read host_keystone
+					echo "host_keystone=$host_keystone" > $host_keystone_file ;;
+				*) echo "Error: Select a number from the list" ;;
+			esac
+		else
+			echo "Set the hostname or the IP Address of the keystone-server: "
+			read host_keystone
+			echo "host_keystone=$host_keystone" > $host_keystone_file
+		fi
+	fi
+}
+
+function set_host_cinder_api(){
+	if [ $single_controller_flag -eq 1 ]; then
+		echo "It's a generic controller installation, not asking anything"
+	else
+		if [ -e "$host_cinder_api_file" ]; then
+			echo "The $host_cinder_api_file file already exists, do you want to source it or do you want to set it to another host? "
+			echo "The content is: "
+			cat $host_cinder_api_file
+			echo "[1] Source it"
+			echo "[2] Set it to the local hostname: $HOSTNAME"
+			echo "[3] Set it to another host"
+			local choice
+			read -p "Enter choice [1 - 3]" choice
+			case $choice in
+				1) source $host_cinder_api_file  ;;
+				2) echo "host_cinder_api=$HOSTNAME" > $host_cinder_api_file ;;
+				3) echo "Set the hostname or the IP Address of the cinder-api-server: "
+					read host_cinder_api
+					echo "host_cinder_api=$host_cinder_api" > $host_cinder_api_file ;;
+				*) echo "Error: Select a number from the list" ;;
+			esac
+		else
+			echo "Set the hostname or the IP Address of the cinder-api-server: "
+			read host_cinder_api
+			echo "host_cinder_api=$host_cinder_api" > $host_cinder_api_file
+		fi
+	fi
+}
+
+function set_host_glance_api(){
+	if [ $single_controller_flag -eq 1 ]; then
+		echo "It's a generic controller installation, not asking anything"
+	else
+		if [ -e "$host_glance_api_file" ]; then
+			echo "The $host_glance_api_file file already exists, do you want to source it or do you want to set it to another host? "
+			echo "The content is: "
+			cat $host_glance_api_file
+			echo "[1] Source it"
+			echo "[2] Set it to the local hostname: $HOSTNAME"
+			echo "[3] Set it to another host"
+			local choice
+			read -p "Enter choice [1 - 3]" choice
+			case $choice in
+				1) source $host_glance_api_file  ;;
+				2) echo "host_glance_api=$HOSTNAME" > $host_glance_api_file ;;
+				3) echo "Set the hostname or the IP Address of the glance-api-server: "
+					read host_glance_api
+					echo "host_glance_api=$host_glance_api" > $host_glance_api_file ;;
+				*) echo "Error: Select a number from the list" ;;
+			esac
+		else
+			echo "Set the hostname or the IP Address of the glance-api-server: "
+			read host_glance_api
+			echo "host_glance_api=$host_glance_api" > $host_glance_api_file
+		fi
+	fi
+
+}	
+	
+function set_host_neutron_api(){
+	if [ $single_controller_flag -eq 1 ]; then
+		echo "It's a generic controller installation, not asking anything"
+	else
+		if [ -e "$host_neutron_api_file" ]; then
+			echo "The $host_neutron_api_file file already exists, do you want to source it or do you want to set it to another host? "
+			echo "The content is: "
+			cat $host_neutron_api_file
+			echo "[1] Source it"
+			echo "[2] Set it to the local hostname: $HOSTNAME"
+			echo "[3] Set it to another host"
+			local choice
+			read -p "Enter choice [1 - 3]" choice
+			case $choice in
+				1) source $host_neutron_api_file  ;;
+				2) echo "host_neutron_api=$HOSTNAME" > $host_neutron_api_file ;;
+				3) echo "Set the hostname or the IP Address of the neutron-api-server: "
+					read host_neutron_api
+					echo "host_neutron_api=$host_neutron_api" > $host_neutron_api_file ;;
+				*) echo "Error: Select a number from the list" ;;
+			esac
+		else
+			echo "Set the hostname or the IP Address of the neutron-api-server: "
+			read host_neutron_api
+			echo "host_neutron_api=$host_neutron_api" > $host_neutron_api_file
+		fi
+	fi
+}
+
+function set_host_nova_api(){
+	if [ $single_controller_flag -eq 1 ]; then
+		echo "It's a generic controller installation, not asking anything"
+	else
+		if [ -e "$host_nova_api_file" ]; then
+			echo "The $host_nova_api_file file already exists, do you want to source it or do you want to set it to another host? "
+			echo "The content is: "
+			cat $host_nova_api_file
+			echo "[1] Source it"
+			echo "[2] Set it to the local hostname: $HOSTNAME"
+			echo "[3] Set it to another host"
+			local choice
+			read -p "Enter choice [1 - 3]" choice
+			case $choice in
+				1) source $host_nova_api_file  ;;
+				2) echo "host_nova_api=$HOSTNAME" > $host_nova_api_file ;;
+				3) echo "Set the hostname or the IP Address of the nova-api-server: "
+					read host_nova_api
+					echo "host_nova_api=$host_nova_api" > $host_nova_api_file ;;
+				*) echo "Error: Select a number from the list" ;;
+			esac
+		else
+			echo "Set the hostname or the IP Address of the nova-api-server: "
+			read host_nova_api
+			echo "host_nova_api=$host_nova_api" > $host_nova_api_file
+		fi
+	fi
+}
+
+function set_host_mysql_server(){
+	if [ $single_controller_flag -eq 1 ]; then
+		echo "It's a generic controller installation, not asking anything"
+	else
+		if [ -e "$host_mysql_file" ]; then
+			echo "The $host_mysql_file file already exists, do you want to source it or do you want to set it to another host? "
+			echo "The content is: "
+			cat $host_mysql_file
+			echo "[1] Source it"
+			echo "[2] Set it to the local hostname: $HOSTNAME"
+			echo "[3] Set it to another host"
+			local choice
+			read -p "Enter choice [1 - 3]" choice
+			case $choice in
+				1) source $host_mysql_file  ;;
+				2) echo "host_mysql_server=$HOSTNAME" > $host_mysql_file ;;
+				3) echo "Set the hostname or the IP Address of the mysql-server: "
+					read host_mysql_server
+					echo "host_mysql_server=$host_mysql_server" > $host_mysql_file ;;
+				*) echo "Error: Select a number from the list" ;;
+			esac
+		else
+			echo "Set the hostname or the IP Address of the mysql-server: "
+			read host_mysql_server
+			echo "host_mysql_server=$host_mysql_server" > $host_mysql_file
+		fi
+	fi
+}
+		
+
 function generate_first_admin(){
 	if [ -e "$admin_user_creds" ]; then
 		echo "The $admin_user_creds file already exists, sourcing it. "
@@ -70,10 +315,11 @@ function configure_admin_openrc(){
 		source $admin_openrc
 	else
 		generate_first_admin
+		set_host_keystone
 		echo "export OS_USERNAME=admin" >> $admin_openrc
 		echo "export OS_PASSWORD=$admin_pass" >> $admin_openrc
 		echo "export OS_TENANT_NAME=admin" >> $admin_openrc
-		echo "export OS_AUTH_URL=http://$controller_node:35357/v2.0" >> $admin_openrc
+		echo "export OS_AUTH_URL=http://$host_keystone:35357/v2.0" >> $admin_openrc
 		chmod 700 $admin_openrc
 		source $admin_openrc
 	fi
@@ -84,11 +330,12 @@ function configure_openrc(){
 		echo "The $openrc file already exists, sourcing it. "
 		source $openrc
 	else	
+		set_host_keystone
 		admin_token=$(openssl rand -hex 16)
 		#echo "export OS_USERNAME=admin" > openrc
 		echo "export OS_SERVICE_TOKEN=$admin_token" >> $openrc
 		#echo "export OS_TENANT_NAME=admin" >> openrc
-		echo "export OS_SERVICE_ENDPOINT=http://$controller_node:35357/v2.0" >> $openrc
+		echo "export OS_SERVICE_ENDPOINT=http://$host_keystone:35357/v2.0" >> $openrc
 		chmod 700 $openrc
 		source $openrc
 	fi
@@ -116,6 +363,7 @@ function configure_db_passwords(){
 }
 
 function  configure_rabbitmq(){
+	set_host_rabbitmq
 	if [ -e "$rabbitrc" ]; then
 		echo "The $rabbitrc file already exists, sourcing it. "
 		source $rabbitrc
@@ -129,24 +377,25 @@ function  configure_rabbitmq(){
 	fi
 }
 
-function set_controller(){
-	if [ -e "$controller_node_file" ]; then
-		echo "The $controller_node file already exists, sourcing it. "
-		source $controller_node_file
-	else
-		echo "Insert the FQDN or IP of the controller node"
-		read controller_node
-		echo "controller_node=$controller_node" >> $controller_node_file
-		chmod 700 $controller_node_file
-		source $controller_node_file
-	fi
-}
+#function set_controller(){
+#	if [ -e "$controller_node_file" ]; then
+#		echo "The $controller_node file already exists, sourcing it. "
+#		source $controller_node_file
+#	else
+#		echo "Insert the FQDN or IP of the controller node"
+#		read controller_node
+#		echo "controller_node=$controller_node" >> $controller_node_file
+#		chmod 700 $controller_node_file
+#		source $controller_node_file
+#	fi
+#}
 
 function create_db(){
 	if [ -e lockfiles/db_installed ]; then
 		echo "DB Already configured"
 	else
 		configure_db_passwords
+		set_host_mysql_server
 		apt-get install -y python-mysqldb mysql-server rabbitmq-server
 		mysql_secure_installation
 		sed -i "s/127.0.0.1/0.0.0.0/g" /etc/mysql/my.cnf
@@ -185,7 +434,7 @@ function configure_keystone() {
 	else
 		create_db
 		configure_rabbitmq
-		set_controller
+		set_host_keystone
 		configure_openrc
 		echo "Installing Openstack keystone server"
 		apt-get install -y keystone python-keystone python-keystoneclient
@@ -193,7 +442,7 @@ function configure_keystone() {
 		cp $keystone_conf "confbak/keystone.conf.$(date +%F_%R)"	
 		echo "Configuring Keystone config file"
 		sed -i "s/\#admin_token\=ADMIN/admin_token\=$admin_token/g" $keystone_conf
-		sed -i "s/connection\ \=\ sqlite\:\/\/\/\/var\/lib\/keystone\/keystone.db/connection\ \=\ mysql\:\/\/keystone\:$password_db_keystone\@$controller_node\/keystone/g" $keystone_conf
+		sed -i "s/connection\ \=\ sqlite\:\/\/\/\/var\/lib\/keystone\/keystone.db/connection\ \=\ mysql\:\/\/keystone\:$password_db_keystone\@$host_mysql_server\/keystone/g" $keystone_conf
 		sed -i "s/\#rabbit_password\=guest/rabbit_password\=$rabbit_pass/g" $keystone_conf
 		rm /var/lib/keystone/keystone.db
 		keystone-manage db_sync
@@ -209,7 +458,7 @@ function configure_keystone() {
 		keystone tenant-create --name=service --description="Service Tenant"
 		keystone service-create --name=keystone --type=identity --description="OpenStack Identity"
 		#ENDPOINT CONFIGURATION
-		keystone endpoint-create --service-id=$(keystone service-list | awk '/ identity / {print $2}') --publicurl=http://$controller_node:5000/v2.0 --internalurl=http://$controller_node:5000/v2.0 --adminurl=http://$controller_node:35357/v2.0
+		keystone endpoint-create --service-id=$(keystone service-list | awk '/ identity / {print $2}') --publicurl=http://$host_keystone:5000/v2.0 --internalurl=http://$host_keystone:5000/v2.0 --adminurl=http://$host_keystone:35357/v2.0
 		touch lockfiles/keystone_installed
 		# END KEYSTONE INSTALLATION
 	fi
@@ -249,6 +498,7 @@ function install_glance(){
 		configure_glancerc
 		create_db
 		configure_rabbitmq
+		set_host_glance_api
 		apt-get install -y glance python-glanceclient
 		keystone user-create --name=glance --pass=$glance_pass --email=glance@example.com
 		keystone user-role-add --user=glance --tenant=service --role=admin
@@ -256,21 +506,21 @@ function install_glance(){
 		cp $glance_registry_conf "confbak/glance-registry.conf.$(date +%F_%R)"
 		# PARSE AND CHANGE API FILE
 		sed -i "/\[DEFAULT\]/ a\rpc_backend\ \=\ rabbit\\
-rabbit_host\ \=\ $controller_node\\
+rabbit_host\ \=\ $host_rabbitmq\\
 rabbit_password\ \=\ $rabbit_pass" $glance_api_conf
-		sed -i "/\[keystone_authtoken\]/ a\auth_uri\ \=\ http\:\/\/$controller_node\:5000" $glance_api_conf
-		sed -i "s/sqlite_db\ \=\ \/var\/lib\/glance\/glance.sqlite/connection\ \=\ mysql\:\/\/glance\:$password_db_glance\@$controller_node\/glance/g" $glance_api_conf
-		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $controller_node/g" $glance_api_conf		
+		sed -i "/\[keystone_authtoken\]/ a\auth_uri\ \=\ http\:\/\/$host_keystone\:5000" $glance_api_conf
+		sed -i "s/sqlite_db\ \=\ \/var\/lib\/glance\/glance.sqlite/connection\ \=\ mysql\:\/\/glance\:$password_db_glance\@$host_mysql_server\/glance/g" $glance_api_conf
+		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $host_keystone/g" $glance_api_conf		
 		sed -i "s/\%SERVICE_TENANT_NAME\%/service/g" $glance_api_conf
 		sed -i "s/\%SERVICE_USER\%/glance/g" $glance_api_conf
 		sed -i "s/\%SERVICE_PASSWORD\%/$glance_pass/g" $glance_api_conf
 		sed -i "s/\#flavor\=/flavor\=keystone/g" $glance_api_conf
 		# PARSE AND CHANGE REGISTRY FILE
-		sed -i "/\[keystone_authtoken\]/ a\auth_uri\ \=\ http\:\/\/$controller_node\:5000" $glance_registry_conf
-		sed -i "s/sqlite_db\ \=\ \/var\/lib\/glance\/glance.sqlite/connection\ \=\ mysql\:\/\/glance\:$password_db_glance\@$controller_node\/glance/g" $glance_registry_conf
-		sed -i "s/rabbit_host\ \=\ localhost/rabbit_host\ \=\ $controller_node/g" $glance_registry_conf		
+		sed -i "/\[keystone_authtoken\]/ a\auth_uri\ \=\ http\:\/\/$host_keystone\:5000" $glance_registry_conf
+		sed -i "s/sqlite_db\ \=\ \/var\/lib\/glance\/glance.sqlite/connection\ \=\ mysql\:\/\/glance\:$password_db_glance\@$host_mysql_server\/glance/g" $glance_registry_conf
+		sed -i "s/rabbit_host\ \=\ localhost/rabbit_host\ \=\ $host_rabbitmq/g" $glance_registry_conf		
 		sed -i "s/\rabbit_password\ \=\ guest/rabbit_password\ \=\ $rabbit_pass/g" $glance_registry_conf
-		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $controller_node/g" $glance_registry_conf		
+		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $host_keystone/g" $glance_registry_conf		
 		sed -i "s/\%SERVICE_TENANT_NAME\%/service/g" $glance_registry_conf
 		sed -i "s/\%SERVICE_USER\%/glance/g" $glance_registry_conf
 		sed -i "s/\%SERVICE_PASSWORD\%/$glance_pass/g" $glance_registry_conf
@@ -281,7 +531,7 @@ rabbit_password\ \=\ $rabbit_pass" $glance_api_conf
 		sleep 5
 		keystone service-create --name=glance --type=image --description="OpenStack Image Service"
 		sleep 5
-		keystone endpoint-create --service-id=$(keystone service-list | awk '/ image / {print $2}') --publicurl=http://$controller_node:9292 --internalurl=http://$controller_node:9292 --adminurl=http://$controller_node:9292
+		keystone endpoint-create --service-id=$(keystone service-list | awk '/ image / {print $2}') --publicurl=http://$host_glance_api:9292 --internalurl=http://$host_glance_api:9292 --adminurl=http://$host_glance_api:9292
 		touch lockfiles/glance_installed
 	fi
 return
@@ -301,20 +551,20 @@ function configure_cinder_controller(){
 		cp $cinder_conf "confbak/cinder.conf.$(date +%F_%R)"
 		configure_rabbitmq
 		echo "rpc_backend = cinder.openstack.common.rpc.impl_kombu" >> $cinder_conf
-		echo "rabbit_host = $controller_node" >> $cinder_conf
+		echo "rabbit_host = $host_rabbitmq" >> $cinder_conf
 		echo "rabbit_port = 5672" >> $cinder_conf
 		echo "rabbit_userid = guest" >> $cinder_conf
 		echo "rabbit_password = $rabbit_pass" >> $cinder_conf
 		echo "[database]" >> $cinder_conf
 		configure_db_passwords
-		echo "connection = mysql://cinder:$password_db_cinder@$controller_node/cinder" >> $cinder_conf
+		echo "connection = mysql://cinder:$password_db_cinder@$host_mysql_server/cinder" >> $cinder_conf
 		cinder-manage db sync
 		configure_cinderrc
 		keystone user-create --name=cinder --pass=$cinder_pass --email=cinder@example.com
 		keystone user-role-add --user=cinder --tenant=service --role=admin
 		echo "[keystone_authtoken]" >> $cinder_conf
-		echo "auth_uri = http://$controller_node:5000" >> $cinder_conf
-		echo "auth_host = $controller_node" >> $cinder_conf
+		echo "auth_uri = http://$host_keystone:5000" >> $cinder_conf
+		echo "auth_host = $host_keystone" >> $cinder_conf
 		echo "auth_port = 35357" >> $cinder_conf
 		echo "auth_protocol = http" >> $cinder_conf
 		echo "admin_tenant_name = service" >> $cinder_conf
@@ -322,9 +572,9 @@ function configure_cinder_controller(){
 		echo "admin_password = $cinder_pass" >> $cinder_conf
 		configure_admin_openrc
 		keystone service-create --name=cinder --type=volume --description="OpenStack Block Storage"
-		keystone endpoint-create --service-id=$(keystone service-list | awk '/ volume / {print $2}') --publicurl=http://$controller_node:8776/v1/%\(tenant_id\)s --internalurl=http://$controller_node:8776/v1/%\(tenant_id\)s --adminurl=http://$controller_node:8776/v1/%\(tenant_id\)s
+		keystone endpoint-create --service-id=$(keystone service-list | awk '/ volume / {print $2}') --publicurl=http://$host_cinder_api:8776/v1/%\(tenant_id\)s --internalurl=http://$host_cinder_api:8776/v1/%\(tenant_id\)s --adminurl=http://$host_cinder_api:8776/v1/%\(tenant_id\)s
 		keystone service-create --name=cinderv2 --type=volumev2 --description="OpenStack Block Storage v2"
-		keystone endpoint-create --service-id=$(keystone service-list | awk '/ volumev2 / {print $2}') --publicurl=http://$controller_node:8776/v2/%\(tenant_id\)s --internalurl=http://$controller_node:8776/v2/%\(tenant_id\)s --adminurl=http://$controller_node:8776/v2/%\(tenant_id\)s
+		keystone endpoint-create --service-id=$(keystone service-list | awk '/ volumev2 / {print $2}') --publicurl=http://$host_cinder_api:8776/v2/%\(tenant_id\)s --internalurl=http://$host_cinder_api:8776/v2/%\(tenant_id\)s --adminurl=http://$host_cinder_api:8776/v2/%\(tenant_id\)s
 		service cinder-scheduler restart
 		service cinder-api restart
 		touch lockfiles/cinder_controller_installed
@@ -353,9 +603,10 @@ function configure_nova_generic(){
 		configure_novarc
 		configure_rabbitmq
 		configure_admin_openrc
-		set_controller
+		set_host_nova_api
+		create_db
 		echo "rpc_backend = rabbit" >> $nova_conf
-		echo "rabbit_host = $controller_node" >> $nova_conf
+		echo "rabbit_host = $host_rabbitmq" >> $nova_conf
 		echo "rabbit_port = 5672" >> $nova_conf
 		echo "rabbit_userid = guest" >> $nova_conf
 		echo "rabbit_password = $rabbit_pass" >> $nova_conf
@@ -363,15 +614,14 @@ function configure_nova_generic(){
 		echo "vncserver_listen = 0.0.0.0" >> $nova_conf
 		echo "vncserver_proxyclient_address = 0.0.0.0" >> $nova_conf
 		echo "novncproxy_base_url = http://$controller_node:6080/vnc_auto.html" >> $nova_conf
-		echo "glance_host = $controller_node" >> $nova_conf
+		echo "glance_host = $host_glance_api" >> $nova_conf
 		echo "auth_strategy = keystone" >> $nova_conf
 		rm /var/lib/nova/nova.sqlite
-		create_db
 		echo "[database]" >> $nova_conf
-		echo "connection = mysql://nova:$password_db_nova@$controller_node/nova" >> $nova_conf
+		echo "connection = mysql://nova:$password_db_nova@$host_mysql_server/nova" >> $nova_conf
 		echo "[keystone_authtoken]" >> $nova_conf
-		echo "auth_uri = http://$controller_node:5000" >> $nova_conf
-		echo "auth_host = $controller_node" >> $nova_conf
+		echo "auth_uri = http://$host_keystone:5000" >> $nova_conf
+		echo "auth_host = $host_keystone" >> $nova_conf
 		echo "auth_port = 35357" >> $nova_conf
 		echo "auth_protocol = http" >> $nova_conf
 		echo "admin_tenant_name = service" >> $nova_conf
@@ -391,7 +641,7 @@ function configure_nova_controller(){
 		keystone user-create --name=nova --pass=$nova_pass --email=nova@example.com
 		keystone user-role-add --user=nova --tenant=service --role=admin
 		keystone service-create --name=nova --type=compute --description="OpenStack Compute"
-		keystone endpoint-create --service-id=$(keystone service-list | awk '/ compute / {print $2}') --publicurl=http://$controller_node:8774/v2/%\(tenant_id\)s --internalurl=http://$controller_node:8774/v2/%\(tenant_id\)s --adminurl=http://$controller_node:8774/v2/%\(tenant_id\)s
+		keystone endpoint-create --service-id=$(keystone service-list | awk '/ compute / {print $2}') --publicurl=http://$host_nova_api:8774/v2/%\(tenant_id\)s --internalurl=http://$host_nova_api:8774/v2/%\(tenant_id\)s --adminurl=http://$host_nova_api:8774/v2/%\(tenant_id\)s
 		nova-manage db sync
 		service nova-api restart
 		service nova-cert restart
@@ -478,27 +728,29 @@ function configure_neutron_dhcp_agent(){
 function configure_neutron_conf(){
 	configure_neutronrc
 	configure_novarc
+	set_host_neutron_api
+	set_host_keystone
 	if [ -e lockfiles/neutron_conf_installed ]; then
 		echo "Neutron conf file already configured"
 	else	
 		cp $neutron_conf "confbak/neutron.conf.$(date +%F_%R)"	
-		sed -i "/\[keystone_authtoken\]/ a\auth_uri\ \=\ http\:\/\/$controller_node\:5000" $neutron_conf
+		sed -i "/\[keystone_authtoken\]/ a\auth_uri\ \=\ http\:\/\/$host_keystone\:5000" $neutron_conf
 		sed -i "s/connection\ \=\ sqlite\:\/\/\/var\/lib\/neutron\/neutron.sqlite/connection\ \=\ mysql\:\/\/neutron\:$password_db_neutron\@$controller_node\/neutron/g" $neutron_conf
 		sed -i "s/\#\ auth_strategy\ \=\ keystone/auth_strategy\ \=\ keystone/g" $neutron_conf
-		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $controller_node/g" $neutron_conf
+		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $host_keystone/g" $neutron_conf
 		sed -i "s/\%SERVICE_TENANT_NAME\%/admin/g" $neutron_conf
 		sed -i "s/\%SERVICE_USER\%/neutron/g" $neutron_conf
 		sed -i "s/\%SERVICE_PASSWORD\%/$neutron_pass/g" $neutron_conf
-		sed -i "s/\#\ rabbit_host\ \=\ localhost/rabbit_host\ =\ $controller_node/g" $neutron_conf
+		sed -i "s/\#\ rabbit_host\ \=\ localhost/rabbit_host\ =\ $host_rabbitmq/g" $neutron_conf
 		sed -i "s/\#\ rabbit_password\ \=\ guest/rabbit_password\ \=\ $rabbit_pass/g" $neutron_conf
 		sed -i "/notify_nova_on_port_status_changes\ \=\ True/ s/# *//" $neutron_conf
 		sed -i "/notify_nova_on_port_data_changes\ \=\ True/ s/# *//" $neutron_conf
-		sed -i "s/\#\ nova_url\ \=\ http\:\/\/127.0.0.1\:8774\/v2/nova_url\ \=\http\:\/\/$controller_node\:8774\/v2/g" $neutron_conf
+		sed -i "s/\#\ nova_url\ \=\ http\:\/\/127.0.0.1\:8774\/v2/nova_url\ \=\http\:\/\/$host_nova_api\:8774\/v2/g" $neutron_conf
 		sed -i "s/\#\ nova_admin_username\ \=/nova_admin_username\ \=\ nova/g" $neutron_conf
 		nova_admin_tenant_id=$(keystone tenant-get service | awk '/ id / {print $4}')
 		sed -i "s/\#\ nova_admin_tenant_id\ \=/nova_admin_tenant_id\ \=\ $nova_admin_tenant_id/g" $neutron_conf
 		sed -i "s/\#\ nova_admin_password\ \=/nova_admin_password\ \=\ $nova_pass/g" $neutron_conf
-		sed -i "s/\#\ nova_admin_auth_url\ \=/nova_admin_auth_url\ \=\ http\:\/\/$controller_node\:35357\/v2.0/g" $neutron_conf
+		sed -i "s/\#\ nova_admin_auth_url\ \=/nova_admin_auth_url\ \=\ http\:\/\/$host_keystone\:35357\/v2.0/g" $neutron_conf
 		sed -i "/\[DEFAULT\]/ a\allow_overlapping_ips\ \=\ True" $neutron_conf
 		sed -i "/\[DEFAULT\]/ a\service_plugins\ \=\ router" $neutron_conf
 		sed -i "/\[DEFAULT\]/ a\core_plugin\ \=\ ml2" $neutron_conf
@@ -521,11 +773,11 @@ configure_neutron_metadatarc(){
 function configure_neutron_metadata(){
 	set_controller
 	configure_neutronrc
-	sed -i "s/auth_url\ \=\ http\:\/\/localhost\:5000\/v2.0/auth_url\ \=\ http\:\/\/$controller_node\:5000\/v2.0/g" $metadata_agent_ini
+	sed -i "s/auth_url\ \=\ http\:\/\/localhost\:5000\/v2.0/auth_url\ \=\ http\:\/\/$host_keystone\:5000\/v2.0/g" $metadata_agent_ini
 	sed -i "s/\%SERVICE_TENANT_NAME\%/service/g" $metadata_agent_ini
 	sed -i "s/\%SERVICE_USER\%/neutron/g" $metadata_agent_ini
 	sed -i "s/\%SERVICE_PASSWORD\%/$neutron_pass/g" $metadata_agent_ini
-	sed -i "s/\#\ nova_metadata_ip\ \=\ 127.0.0.1/nova_metadata_ip\ \=\ $controller_node/g" $metadata_agent_ini
+	sed -i "s/\#\ nova_metadata_ip\ \=\ 127.0.0.1/nova_metadata_ip\ \=\ $host_nova_api/g" $metadata_agent_ini
 	configure_neutron_metadatarc
 	sed -i "\#\ metadata_proxy_shared_secret\ \=/metadata_proxy_shared_secret\ \=\ $metadata_pass/g" $metadata_agent_ini
 }
@@ -534,16 +786,20 @@ function configure_neutron_novaconf(){
 	if [ -e lockfiles/neutron_nova_configured ]; then
 		echo "Neutron controller service already installed"
 	else
+		configure_neutronrc
+		configure_neutron_metadatarc
+		set_host_neutron_api
+		set_host_keystone
 		cp $nova_conf "confbak/neutron.conf.$(date +%F_%R)"	
 		sed -i "/\[DEFAULT\]/ a\network_api_class\ \=\ nova.network.neutronv2.api.API\\
 service_neutron_metadata_proxy\ \=\ true\\
 neutron_metadata_proxy_shared_secret\ \=\ $metadata_pass\\
-neutron_url\ \=\ http:\/\/$controller_node\:9696\\
+neutron_url\ \=\ http:\/\/$host_neutron_api\:9696\\
 neutron_auth_strategy\ \=\ keystone\\
 neutron_admin_tenant_name\ \=\ service\\
 neutron_admin_username\ \=\ neutron\\
 neutron_admin_password\ \=\ $neutron_pass\\
-neutron_admin_auth_url\ \=\ http\:\/\/$controller_node\:35357\/v2.0\\
+neutron_admin_auth_url\ \=\ http\:\/\/$host_keystone\:35357\/v2.0\\
 linuxnet_interface_driver\ \=\ nova.network.linux_net.LinuxOVSInterfaceDriver\\
 firewall_driver\ \=\ nova.virt.firewall.NoopFirewallDriver\\
 security_group_api\ \=\ neutron" $nova_conf
@@ -560,12 +816,12 @@ function configure_neutron_controller(){
 		configure_neutronrc
 		configure_rabbitmq
 		configure_admin_openrc
-		set_controller
+		set_host_neutron_api
 		cp $neutron_conf "confbak/neutron.conf.$(date +%F_%R)"
 		keystone user-create --name neutron --pass $neutron_pass --email neutron@example.com
 		keystone user-role-add --user neutron --tenant service --role admin
 		keystone service-create --name neutron --type network --description "OpenStack Networking"
-		keystone endpoint-create --service-id $(keystone service-list | awk '/ network / {print $2}') --publicurl http://$controller_node:9696 --adminurl http://$controller_node:9696 --internalurl http://$controller_node:9696
+		keystone endpoint-create --service-id $(keystone service-list | awk '/ network / {print $2}') --publicurl http://$host_neutron_api:9696 --adminurl http://$host_neutron_api:9696 --internalurl http://$host_neutron_api:9696
 		configure_neutron_conf
 		configure_nova_controller
 		configure_neutron_metadatarc
@@ -614,6 +870,21 @@ function configure_neutron_compute(){
 	service nova-compute restart
 	service neutron-plugin-openvswitch-agent restart
 }
+
+function install_generic_controller(){
+	echo "INSTALLING THE CONTROLLER NODE"
+	set_host_generic_controller
+	configure_rabbitmq
+	create_db
+	configure_keystone
+	install_glance
+	configure_cinder_controller
+	configure_nova_controller
+	configure_neutron_controller
+	configure_horizon
+	echo "THE CONTROLLER NODE IS NOW INSTALLED (i hope so :) )"
+}
+
 # OPERATIONS MENU
 show_menus(){
 	echo "REMEMBER TO UPDATE THE REPOSITORIES!"
@@ -628,6 +899,7 @@ show_menus(){
 	echo "[9] Configure the Orchestration (Heat)"
 	echo "[10] Configure the Telemetry (Ceilometer)"
 	echo "[11] Configure the Dashboard (Horizon)"
+	echo "[12] Install a Controller Node ( MySQL + Keystone + Glance + Cinder API + Nova API + Neutron API + Horizon )"
 	echo "[q] Exit"
 }
 
@@ -646,6 +918,7 @@ read_options(){
 		9) configure_heat ;;
 		10) configure_ceilometer ;;
 		11) configure_horizon ;;
+		12) install_generic_controller ;;
 		q) exit 0 ;;
 		*) echo "Error: Select a number from the list" ;;
 	esac
