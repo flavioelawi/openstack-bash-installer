@@ -61,6 +61,13 @@ function set_host_generic_controller(){
 			echo "host_neutron_api=$host_controller" > $host_neutron_api_file
 			echo "host_nova_api=$host_controller" > $host_nova_api_file
 			echo "host_mysql_server=$host_host_controller" > $host_mysql_file
+			source $host_rabbitmq_file
+			source $host_keystone_file
+			source $host_cinder_api_file
+			source $host_glance_api_file
+			source $host_neutron_api_file
+			source $host_nova_api_file
+			source $host_mysql_file
 			single_controller_flag="1"
 			;;
 		2) exit 0 ;;
