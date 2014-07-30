@@ -742,10 +742,10 @@ function configure_neutron_conf(){
 	else	
 		cp $neutron_conf "confbak/neutron.conf.$(date +%F_%R)"	
 		sed -i "/\[keystone_authtoken\]/ a\auth_uri\ \=\ http\:\/\/$host_keystone\:5000" $neutron_conf
-		sed -i "s/connection\ \=\ sqlite\:\/\/\/var\/lib\/neutron\/neutron.sqlite/connection\ \=\ mysql\:\/\/neutron\:$password_db_neutron\@$controller_node\/neutron/g" $neutron_conf
+		sed -i "s/connection\ \=\ sqlite\:\/\/\/\/var\/lib\/neutron\/neutron.sqlite/connection\ \=\ mysql\:\/\/neutron\:$password_db_neutron\@$controller_node\/neutron/g" $neutron_conf
 		sed -i "s/\#\ auth_strategy\ \=\ keystone/auth_strategy\ \=\ keystone/g" $neutron_conf
 		sed -i "s/auth_host\ \=\ 127.0.0.1/auth_host\ \=\ $host_keystone/g" $neutron_conf
-		sed -i "s/\%SERVICE_TENANT_NAME\%/admin/g" $neutron_conf
+		sed -i "s/\%SERVICE_TENANT_NAME\%/service/g" $neutron_conf
 		sed -i "s/\%SERVICE_USER\%/neutron/g" $neutron_conf
 		sed -i "s/\%SERVICE_PASSWORD\%/$neutron_pass/g" $neutron_conf
 		sed -i "s/\#\ rabbit_host\ \=\ localhost/rabbit_host\ =\ $host_rabbitmq/g" $neutron_conf
