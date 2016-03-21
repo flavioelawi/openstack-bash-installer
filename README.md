@@ -9,6 +9,6 @@ Multinode intelligent setup
 
 TO LAUNCH:
 ```bash
-git clone https://github.com/galiral/openstack-bash-installer.git
+git clone https://github.com/flavioelawi/openstack-bash-installer.git
 ./openstack-bash-installer.sh
 ```
